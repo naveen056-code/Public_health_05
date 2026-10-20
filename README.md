@@ -1,3 +1,68 @@
+# Clinic Broker: where Fulton County's mobile clinic parks, and why
+
+**Agents for Impact 2026 · Challenge 5 · Track: Siting, with Accountability and Explanation
+built behind it**
+
+Our agent helps **the outreach lead** in **Fulton County, GA** decide **where the county's one
+mobile clinic parks on next month's four Saturdays**, and the thing it knows that a
+spreadsheet does not is **which of its own numbers it can trust, at what scale, and whether
+the plan lands fairly on the people it is meant to reach.**
+
+**Try it:** https://clinic-broker-702160158477.us-east1.run.app/dev-ui/ → pick `clinic_broker`
+→ *"Plan next month's four Saturday stops for the van."* (two to five minutes). The State tab
+and event graph show the agents handing off; the Artifacts panel holds the printable flyer
+and the funder statement.
+
+**Full write-up:** [`agent/README.md`](agent/README.md): architecture, who sees what, the
+four judge questions, the audit numbers, the scale of every claim, and how to run it.
+
+## What is complete
+
+| Track | Status | What the system produces |
+|---|---|---|
+| 🚐 **Siting** (our lead) | ✅ Complete | Four dated Saturdays, each a named census tract with the numbers that put it there (every one labelled with its scale) and the nearest clinic that sees uninsured patients for follow-up care |
+| 📋 **Accountability** | ✅ Complete | An independent **equity audit** on Census race and ethnicity the planner never saw, which can reject the plan, plus an **accountability statement** for a funder or program director, built only from computed facts and the audit's own table |
+| 📣 **Explanation** | ✅ Complete | A **printable flyer**, one page per Saturday in English and Spanish; text messages; and a "why not us?" script for the neighborhood that just missed out |
+
+## How it works
+
+| Agent | Job | Sees | Never sees |
+|---|---|---|---|
+| Planner | Ranks tracts by need and picks four spaced-out Saturdays, using our `plan_saturdays` tool | Need, access and capacity tables | Race or ethnicity: no tool it holds can read them |
+| Auditor | Checks who the plan lands on and every claim's scale; PASS or REVISE | Census race and ethnicity, via **BigQuery's managed MCP server** | The planner's reasoning |
+| Reviser | Fixes a rejected plan, with need-based changes only, and says up front if it overrode the request | The audit and the plan | Race or ethnicity |
+| Explainer | Writes the neighborhood copy, warm and plain, English and Spanish | The final stops | The analysis and the audit |
+| Accountability writer | Writes the plan up formally for a funder | Computed facts and the audit table | The raw tables |
+
+Evidence gathering runs as three parallel lookups, and the explainer and accountability writer
+also run in parallel. Built with Google ADK 2.7 and Gemini 3.6 Flash on BigQuery, deployed to
+Cloud Run.
+
+## Three results worth knowing
+
+- **The system rejects its own first answer.** Asked to rank on the uninsured rate alone, the
+  auditor found the plan under-reached adults 65+ (**5.4%** of the plan vs **12.7%** of
+  high-need tracts), because that uninsured measure covers ages 18-64 only. The plan was
+  revised on need, not demographics, and opens with "We changed what you asked for."
+- **Four Saturdays are a small slice of the need.** The stop tracts hold about **6.5%** of the
+  240,709 people in the county's highest-need tracts, and the funder statement says so.
+- **The air data cannot pick a neighborhood.** Across all of Fulton, PM2.5 varies by **4.7%**
+  (a 12 km grid), while **443,800 people** live more than 5 km from a clinic that sees the
+  uninsured. Air quality is reported as county context and never used to rank.
+
+## Repository layout
+
+| Path | What it is |
+|---|---|
+| [`agent/clinic_broker/`](agent/clinic_broker/) | The multi-agent pipeline described above |
+| [`agent/agent.py`](agent/agent.py) | A separate single-agent coordinator from an earlier PR |
+| [`notebooks/`](notebooks/) | The organizers' data loader and explorer |
+| [`scripts/load.sh`](scripts/load.sh) | Headless data loader (needs bash 4; run it in Cloud Shell) |
+
+---
+
+*Everything below is the organizers' challenge brief, kept as shipped.*
+
 # Challenge 5—Dynamic Public Health Equity & Preventative Mobile Care Broker
 
 **Agents for Impact 2026**

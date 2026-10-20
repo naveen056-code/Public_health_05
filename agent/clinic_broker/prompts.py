@@ -3,7 +3,9 @@
 The planner's and the explainer's instructions contradict each other on purpose. The
 planner must hedge, cite and label every number with its scale. The explainer must be
 warm, plain and short, with no numbers a stranger at a bus stop would trip over. One
-prompt cannot hold both; that is the reason they are two agents.
+prompt cannot hold both; that is the reason they are two agents. The auditor's and the
+accountability writer's instructions are built from state in audit.py and
+accountability.py.
 """
 
 from . import config
@@ -125,15 +127,27 @@ you do not need insurance; the date; the name of the clinic nearby for follow-up
 Do not invent a street address, parking spot or time. Write [parking spot] and [time] where
 those go so staff can fill them in.
 
-## Output (markdown, nothing else)
+## What to write
 
-### Text messages
-For each Saturday: one English message and one Spanish message, each under 300 characters.
-Write natural Spanish, not a word-for-word translation.
+For each stop, using its geo_id exactly as given:
+- headline_en / headline_es: at most 8 words, inviting, no question marks.
+- invitation_en / invitation_es: two or three short sentences for a printed flyer. The
+  flyer already prints the date, the list of free checks, the follow-up clinic and blank
+  lines for the time and place, so do not repeat those; say who is welcome and why it is
+  worth coming.
+- sms_en / sms_es: a complete text message under 300 characters, with the date,
+  [time], [parking spot], the free checks, and "no insurance needed".
 
-### For the neighborhood we did not pick
-A short script, English then Spanish, for a community health worker who is asked "why not
-us?". Be honest: the van goes first where people live farthest from a low-cost clinic and
-fewer households have a car. Say where people can get care in the meantime (the nearest
-clinic named in the stops above), and that the plan is made again every month.
+Then why_not_us_en / why_not_us_es: a short script for a community health worker asked
+"why not us?" by the neighborhood that did not get a Saturday. Be honest about its reason
+(its why_not field above), in plain words: the van goes first where people live farthest
+from a low-cost clinic and fewer households have a car, and if a stop is close by, say so.
+Say where people can get care in the meantime (a clinic named in the stops above), and that
+the plan is made again every month.
+
+Write dates exactly as each stop's saturday_en and saturday_es give them, never as
+numbers. Call each clinic by its refer_to display_name.
+
+Write natural Spanish, not a word-for-word translation. Use "enfermera practicante" for
+nurse practitioner.
 """
