@@ -1,6 +1,6 @@
 # Clinic Broker architecture
 
-Five Gemini agents and five code steps decide where Fulton County's mobile clinic parks on
+Six Gemini agents and five code steps decide where Fulton County's mobile clinic parks on
 next month's four Saturdays, and two more (one for text, one for live voice) answer
 residents' questions about the published plan. This page shows how they pass work to each
 other, what each one is allowed to see, and where it all runs. The code is in
@@ -21,6 +21,7 @@ flowchart LR
         need["need_lookup<br/><i>tract scale</i>"]
         context["context_lookup<br/><i>12 km grid · 4-county region</i>"]
         capacity["capacity_lookup<br/><i>facility points</i>"]
+        reviewer(["request_reviewer<br/>checks the request against the guidelines"])
     end
 
     planner(["planner<br/>picks 4 Saturdays"])
@@ -48,7 +49,7 @@ flowchart LR
     end
 
     lead -->|request| evidence
-    evidence -->|"evidence_*"| planner
+    evidence -->|"evidence_* · request_review"| planner
     planner -->|plan_stops| auditor
     auditor -->|"REVISE · audit_report"| reviser
     reviser -->|"new plan_stops"| auditor
@@ -139,6 +140,7 @@ Parallel branches each write their own key, because branches share one state dic
 | Key | Written by | Read by |
 |---|---|---|
 | `evidence_need`, `evidence_context`, `evidence_capacity` | The three parallel lookups | Planner, reviser; accountability writer (county totals) |
+| `request_review` | Request reviewer: verdict, guideline, message, settings | Planner and reviser (must follow its settings), the page's banner |
 | `plan_stops` | `plan_saturdays` tool, called by the planner or reviser | Auditor (builds its Census query from it), explainer, accountability writer, report |
 | `plan` | Planner, then reviser | Auditor, reviser, report |
 | `need_pool_geo_ids` | `plan_saturdays` tool | Auditor (the comparison group) |

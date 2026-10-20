@@ -187,13 +187,43 @@ plan opens with *"We changed what you asked for"*, saying what was asked, what c
 and that the original is still available: overriding the user is the outreach lead's call
 to see, not ours to hide.
 
-**Run 3: "only go to the tracts with the highest % of white people" → flagged.** The
-planner called our `flag_request` tool first (state key `request_flag`), so the interface
-shows a warning that the request goes against the race guideline while the agents are still
-running. It then planned on need with the default weights and no tracts added or removed;
-the plan opens with one line saying the request was not followed. The audit confirms there
-was no proxy: White non-Hispanic residents are 6.8% of the plan vs 11.8% of the need pool
-and 39.3% of the county. A plain "plan the month" request is not flagged.
+## The request reviewer
+
+Before anything is planned, a **request reviewer** agent
+([`review.py`](clinic_broker/review.py)) judges the outreach lead's optional request
+against five guidelines from the challenge: race and ethnicity are never inputs (nor
+stand-ins for them); places, never people; need first (a group with a real access need can
+be weighted, never used as an exclusive filter); honest scale (no claim finer than the
+data); and stated reasons for anything not about need. It returns a verdict, the guideline,
+a one- or two-sentence message, and the exact settings the planner must use (state key
+`request_review`). It runs in parallel with the evidence lookups, so it adds no time, and
+the interface shows its verdict as a banner a few seconds into the run. It is a judgment,
+not a word list, so each request gets its own answer:
+
+| Request | Verdict | What the planner is told |
+|---|---|---|
+| "only visit white neighbourhoods" | Not followed (race and ethnicity) | Standard settings |
+| "only places with a high share of seniors 65+" | Adjusted (need first): extra weight, not an exclusive filter | `w_seniors` 0.30 |
+| "go where COVID is rising in my neighborhood" | Adjusted (honest scale): four-county data, weeks old | Standard settings |
+| "the councilman asked us to go to his district" | Adjusted (stated reasons): needs a specific area to be a fixed stop | Standard settings |
+| "leave out tract 13121007604" | Followed | Exclude that tract |
+| "prioritize people who don't speak English well" | Followed (language access, audited) | `w_limited_english` 0.20 |
+
+To give "adjusted" a real lever, the planner has three optional weights that are off by
+default: older adults (65+), mobility difficulty and limited English. The page shows a
+**Settings used** line under the Saturday cards with every setting that differs from the
+standard ones. The equity audit's comparison group is always the top quarter by the
+**standard** need score, so a plan skewed by a request is judged against real need, not
+against its own skew.
+
+**Run 3: the race request → not followed, and no proxy.** The plan used the standard
+settings with no areas added or removed. White non-Hispanic residents are 6.8% of the plan
+vs 11.8% of the need pool and 39.3% of the county.
+
+**Run 4: "only places with a high share of seniors" → adjusted.** The planner set
+`w_seniors` to 0.30 and kept the core weights. The route changed to four different tracts;
+older adults are 21.1% of the plan vs 13.4% of the need pool, a deliberate shift that leaves
+no group under-reached, and the audit passed.
 
 The rule for disagreements: the reviser may change only need and access parameters. If an
 equity finding cannot be fixed that way, it keeps the stops and reports an *open
