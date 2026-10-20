@@ -1,5 +1,6 @@
 import os
 import re
+import subprocess
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -7,6 +8,32 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
+
+
+def _ensure_vertex_ai_env() -> None:
+    """Auto-configure Vertex AI credentials in Cloud Shell so no API key is required."""
+    os.environ.setdefault("GOOGLE_GENAI_USE_VERTEXAI", "TRUE")
+    os.environ.setdefault("GOOGLE_CLOUD_LOCATION", "us-central1")
+    if not os.environ.get("GOOGLE_CLOUD_PROJECT"):
+        proj = (
+            os.environ.get("DEVSHELL_PROJECT_ID")
+            or os.environ.get("GCLOUD_PROJECT")
+            or os.environ.get("GCP_PROJECT")
+        )
+        if not proj:
+            try:
+                proj = subprocess.check_output(
+                    ["gcloud", "config", "get-value", "project"],
+                    text=True,
+                    stderr=subprocess.DEVNULL,
+                ).strip()
+            except Exception:
+                proj = None
+        if proj and proj != "(unset)":
+            os.environ["GOOGLE_CLOUD_PROJECT"] = proj
+
+
+_ensure_vertex_ai_env()
 
 app = FastAPI(
     title="Public Health Equity & Preventative Mobile Care Broker",
@@ -34,6 +61,7 @@ class ChatRequest(BaseModel):
 FALLBACK_TRACTS: List[Dict[str, Any]] = [
     {
         "geo_id": "13121007808",
+        "location_label": "South Fulton · Old National Hwy",
         "total_pop": 5412,
         "latitude": 33.6612,
         "longitude": -84.5105,
@@ -42,7 +70,10 @@ FALLBACK_TRACTS: List[Dict[str, Any]] = [
         "pct_diabetes": 16.8,
         "pct_high_bp": 41.2,
         "pct_asthma": 11.9,
+        "pct_copd": 8.4,
         "pct_no_vehicle": 18.6,
+        "pct_age_65_plus": 15.8,
+        "pct_mobility_difficulty": 17.4,
         "pct_limited_english": 7.4,
         "km_to_any_care": 2.1,
         "km_to_safety_net": 18.4,
@@ -53,6 +84,7 @@ FALLBACK_TRACTS: List[Dict[str, Any]] = [
     },
     {
         "geo_id": "13121010514",
+        "location_label": "Fairburn · Campbellton Corridor",
         "total_pop": 6180,
         "latitude": 33.5845,
         "longitude": -84.6021,
@@ -61,7 +93,10 @@ FALLBACK_TRACTS: List[Dict[str, Any]] = [
         "pct_diabetes": 15.9,
         "pct_high_bp": 39.8,
         "pct_asthma": 11.4,
+        "pct_copd": 7.9,
         "pct_no_vehicle": 15.2,
+        "pct_age_65_plus": 14.2,
+        "pct_mobility_difficulty": 16.1,
         "pct_limited_english": 6.1,
         "km_to_any_care": 3.4,
         "km_to_safety_net": 22.9,
@@ -72,6 +107,7 @@ FALLBACK_TRACTS: List[Dict[str, Any]] = [
     },
     {
         "geo_id": "13121008202",
+        "location_label": "Westside · Adamsville Center",
         "total_pop": 4390,
         "latitude": 33.7240,
         "longitude": -84.4680,
@@ -80,7 +116,10 @@ FALLBACK_TRACTS: List[Dict[str, Any]] = [
         "pct_diabetes": 18.1,
         "pct_high_bp": 43.5,
         "pct_asthma": 12.6,
+        "pct_copd": 9.3,
         "pct_no_vehicle": 24.3,
+        "pct_age_65_plus": 18.9,
+        "pct_mobility_difficulty": 20.2,
         "pct_limited_english": 4.9,
         "km_to_any_care": 1.8,
         "km_to_safety_net": 14.2,
@@ -91,6 +130,7 @@ FALLBACK_TRACTS: List[Dict[str, Any]] = [
     },
     {
         "geo_id": "13121007603",
+        "location_label": "East Point · Cleveland Ave",
         "total_pop": 4820,
         "latitude": 33.6880,
         "longitude": -84.4390,
@@ -99,7 +139,10 @@ FALLBACK_TRACTS: List[Dict[str, Any]] = [
         "pct_diabetes": 15.2,
         "pct_high_bp": 38.4,
         "pct_asthma": 11.2,
+        "pct_copd": 8.1,
         "pct_no_vehicle": 19.1,
+        "pct_age_65_plus": 13.7,
+        "pct_mobility_difficulty": 15.9,
         "pct_limited_english": 11.8,
         "km_to_any_care": 1.9,
         "km_to_safety_net": 13.7,
@@ -109,7 +152,100 @@ FALLBACK_TRACTS: List[Dict[str, Any]] = [
         "svi_housing_transport": 0.85,
     },
     {
+        "geo_id": "13121010305",
+        "location_label": "Union City · Roosevelt Hwy",
+        "total_pop": 6430,
+        "latitude": 33.6120,
+        "longitude": -84.5490,
+        "pct_uninsured": 17.9,
+        "pct_checkup": 71.8,
+        "pct_diabetes": 14.7,
+        "pct_high_bp": 37.9,
+        "pct_asthma": 11.1,
+        "pct_copd": 7.5,
+        "pct_no_vehicle": 13.8,
+        "pct_age_65_plus": 12.9,
+        "pct_mobility_difficulty": 14.8,
+        "pct_limited_english": 5.6,
+        "km_to_any_care": 2.6,
+        "km_to_safety_net": 16.8,
+        "extra_km_if_uninsured": 14.2,
+        "svi_socioeconomic": 0.81,
+        "svi_household": 0.76,
+        "svi_housing_transport": 0.77,
+    },
+    {
+        "geo_id": "13121010214",
+        "location_label": "Lakewood · Sylvan Rd Transit Hub",
+        "total_pop": 1938,
+        "latitude": 33.7042,
+        "longitude": -84.4125,
+        "pct_uninsured": 14.2,
+        "pct_checkup": 72.4,
+        "pct_diabetes": 16.4,
+        "pct_high_bp": 40.1,
+        "pct_asthma": 12.2,
+        "pct_copd": 8.8,
+        "pct_no_vehicle": 43.0,
+        "pct_age_65_plus": 17.5,
+        "pct_mobility_difficulty": 19.6,
+        "pct_limited_english": 3.8,
+        "km_to_any_care": 1.6,
+        "km_to_safety_net": 8.1,
+        "extra_km_if_uninsured": 6.5,
+        "svi_socioeconomic": 0.88,
+        "svi_household": 0.85,
+        "svi_housing_transport": 0.94,
+    },
+    {
+        "geo_id": "13121005501",
+        "location_label": "Pittsburgh · McDaniel St",
+        "total_pop": 3910,
+        "latitude": 33.7350,
+        "longitude": -84.3980,
+        "pct_uninsured": 16.4,
+        "pct_checkup": 73.1,
+        "pct_diabetes": 13.5,
+        "pct_high_bp": 35.2,
+        "pct_asthma": 11.0,
+        "pct_copd": 7.2,
+        "pct_no_vehicle": 21.0,
+        "pct_age_65_plus": 14.9,
+        "pct_mobility_difficulty": 16.2,
+        "pct_limited_english": 3.2,
+        "km_to_any_care": 0.9,
+        "km_to_safety_net": 1.4,
+        "extra_km_if_uninsured": 0.5,
+        "svi_socioeconomic": 0.78,
+        "svi_household": 0.72,
+        "svi_housing_transport": 0.80,
+    },
+    {
+        "geo_id": "13121008601",
+        "location_label": "Bankhead · Hollowell Pkwy",
+        "total_pop": 4150,
+        "latitude": 33.7725,
+        "longitude": -84.4510,
+        "pct_uninsured": 18.9,
+        "pct_checkup": 70.2,
+        "pct_diabetes": 15.8,
+        "pct_high_bp": 39.4,
+        "pct_asthma": 12.1,
+        "pct_copd": 8.6,
+        "pct_no_vehicle": 22.4,
+        "pct_age_65_plus": 16.3,
+        "pct_mobility_difficulty": 18.1,
+        "pct_limited_english": 4.1,
+        "km_to_any_care": 1.7,
+        "km_to_safety_net": 9.8,
+        "extra_km_if_uninsured": 8.1,
+        "svi_socioeconomic": 0.84,
+        "svi_household": 0.81,
+        "svi_housing_transport": 0.86,
+    },
+    {
         "geo_id": "13121009501",
+        "location_label": "Buckhead · Peachtree Corridor",
         "total_pop": 5120,
         "latitude": 33.8420,
         "longitude": -84.3620,
@@ -118,7 +254,10 @@ FALLBACK_TRACTS: List[Dict[str, Any]] = [
         "pct_diabetes": 7.8,
         "pct_high_bp": 24.1,
         "pct_asthma": 8.4,
+        "pct_copd": 4.2,
         "pct_no_vehicle": 4.1,
+        "pct_age_65_plus": 16.4,
+        "pct_mobility_difficulty": 8.3,
         "pct_limited_english": 2.3,
         "km_to_any_care": 1.1,
         "km_to_safety_net": 6.4,
@@ -129,6 +268,7 @@ FALLBACK_TRACTS: List[Dict[str, Any]] = [
     },
     {
         "geo_id": "13121011425",
+        "location_label": "Roswell · Holcomb Bridge",
         "total_pop": 5890,
         "latitude": 34.0210,
         "longitude": -84.3250,
@@ -137,7 +277,10 @@ FALLBACK_TRACTS: List[Dict[str, Any]] = [
         "pct_diabetes": 6.9,
         "pct_high_bp": 22.8,
         "pct_asthma": 7.9,
+        "pct_copd": 3.9,
         "pct_no_vehicle": 2.8,
+        "pct_age_65_plus": 14.1,
+        "pct_mobility_difficulty": 7.5,
         "pct_limited_english": 3.5,
         "km_to_any_care": 1.5,
         "km_to_safety_net": 11.2,
@@ -147,42 +290,50 @@ FALLBACK_TRACTS: List[Dict[str, Any]] = [
         "svi_housing_transport": 0.25,
     },
     {
-        "geo_id": "13121005501",
-        "total_pop": 3910,
-        "latitude": 33.7350,
-        "longitude": -84.3980,
-        "pct_uninsured": 16.4,
-        "pct_checkup": 73.1,
-        "pct_diabetes": 13.5,
-        "pct_high_bp": 35.2,
-        "pct_asthma": 11.0,
-        "pct_no_vehicle": 21.0,
-        "pct_limited_english": 3.2,
-        "km_to_any_care": 0.9,
-        "km_to_safety_net": 1.4,
-        "extra_km_if_uninsured": 0.5,
-        "svi_socioeconomic": 0.78,
-        "svi_household": 0.72,
-        "svi_housing_transport": 0.80,
+        "geo_id": "13121010119",
+        "location_label": "Sandy Springs · Roswell Rd",
+        "total_pop": 5640,
+        "latitude": 33.9310,
+        "longitude": -84.3785,
+        "pct_uninsured": 9.4,
+        "pct_checkup": 77.5,
+        "pct_diabetes": 8.9,
+        "pct_high_bp": 26.7,
+        "pct_asthma": 8.8,
+        "pct_copd": 4.8,
+        "pct_no_vehicle": 6.5,
+        "pct_age_65_plus": 13.2,
+        "pct_mobility_difficulty": 9.4,
+        "pct_limited_english": 9.8,
+        "km_to_any_care": 1.4,
+        "km_to_safety_net": 9.9,
+        "extra_km_if_uninsured": 8.5,
+        "svi_socioeconomic": 0.39,
+        "svi_household": 0.42,
+        "svi_housing_transport": 0.48,
     },
     {
-        "geo_id": "13121010305",
-        "total_pop": 6430,
-        "latitude": 33.6120,
-        "longitude": -84.5490,
-        "pct_uninsured": 17.9,
-        "pct_checkup": 71.8,
-        "pct_diabetes": 14.7,
-        "pct_high_bp": 37.9,
-        "pct_asthma": 11.1,
-        "pct_no_vehicle": 13.8,
-        "pct_limited_english": 5.6,
-        "km_to_any_care": 2.6,
-        "km_to_safety_net": 16.8,
-        "extra_km_if_uninsured": 14.2,
-        "svi_socioeconomic": 0.81,
-        "svi_household": 0.76,
-        "svi_housing_transport": 0.77,
+        "geo_id": "13121011612",
+        "location_label": "Alpharetta · Windward Pkwy",
+        "total_pop": 6210,
+        "latitude": 34.0750,
+        "longitude": -84.2790,
+        "pct_uninsured": 4.8,
+        "pct_checkup": 82.0,
+        "pct_diabetes": 6.4,
+        "pct_high_bp": 21.5,
+        "pct_asthma": 7.6,
+        "pct_copd": 3.5,
+        "pct_no_vehicle": 2.1,
+        "pct_age_65_plus": 11.8,
+        "pct_mobility_difficulty": 6.8,
+        "pct_limited_english": 4.2,
+        "km_to_any_care": 1.8,
+        "km_to_safety_net": 15.4,
+        "extra_km_if_uninsured": 13.6,
+        "svi_socioeconomic": 0.14,
+        "svi_household": 0.19,
+        "svi_housing_transport": 0.21,
     },
 ]
 
@@ -236,6 +387,55 @@ FALLBACK_SITES: List[Dict[str, Any]] = [
         "is_safety_net": False,
     },
 ]
+
+KNOWN_TRACT_LABELS = {
+    "13121007808": "South Fulton · Old National Hwy",
+    "13121010514": "Fairburn · Campbellton Corridor",
+    "13121008202": "Westside · Adamsville Center",
+    "13121007603": "East Point · Cleveland Ave",
+    "13121010305": "Union City · Roosevelt Hwy",
+    "13121010214": "Lakewood · Sylvan Rd Transit Hub",
+    "13121005501": "Pittsburgh · McDaniel St",
+    "13121008601": "Bankhead · Hollowell Pkwy",
+    "13121009501": "Buckhead · Peachtree Corridor",
+    "13121011425": "Roswell · Holcomb Bridge",
+    "13121010119": "Sandy Springs · Roswell Rd",
+    "13121011612": "Alpharetta · Windward Pkwy",
+}
+
+
+def resolve_location_label(t: Dict[str, Any], center_lat: float, center_lon: float) -> str:
+    if t.get("location_label"):
+        return str(t["location_label"])
+    gid = str(t.get("geo_id", ""))
+    if gid in KNOWN_TRACT_LABELS:
+        return KNOWN_TRACT_LABELS[gid]
+
+    lat = float(t.get("latitude") or center_lat)
+    lon = float(t.get("longitude") or center_lon)
+    # Fulton County (13121) geographic sub-regions
+    if gid.startswith("13121"):
+        if lat < 33.63:
+            area = "South Fulton / Fairburn"
+        elif lat < 33.71 and lon < -84.46:
+            area = "Cascade / Old National"
+        elif lat < 33.71:
+            area = "East Point / Tri-Cities"
+        elif lat < 33.79 and lon < -84.43:
+            area = "Westside / Bankhead"
+        elif lat < 33.79:
+            area = "Downtown / Midtown South"
+        elif lat < 33.90:
+            area = "Buckhead / North Atlanta"
+        elif lat < 34.00:
+            area = "Sandy Springs"
+        else:
+            area = "Roswell / Alpharetta"
+        return f"{area} · Tract #{gid[-4:]}"
+
+    ns = "North" if lat >= center_lat else "South"
+    ew = "East" if lon >= center_lon else "West"
+    return f"{ns}-{ew} Corridor · Tract #{gid[-4:]}"
 
 
 def compute_need_score(t: Dict[str, Any]) -> float:
@@ -293,7 +493,10 @@ def load_county_data() -> Dict[str, Any]:
             ROUND(b.pct_diabetes, 1) AS pct_diabetes,
             ROUND(b.pct_high_bp, 1) AS pct_high_bp,
             ROUND(b.pct_asthma, 1) AS pct_asthma,
+            ROUND(b.pct_copd, 1) AS pct_copd,
             ROUND(b.pct_no_vehicle, 1) AS pct_no_vehicle,
+            ROUND(b.pct_age_65_plus, 1) AS pct_age_65_plus,
+            ROUND(b.pct_mobility_difficulty, 1) AS pct_mobility_difficulty,
             ROUND(b.pct_limited_english, 1) AS pct_limited_english,
             ROUND(a.km_to_any_care, 2) AS km_to_any_care,
             ROUND(a.km_to_safety_net, 2) AS km_to_safety_net,
@@ -347,8 +550,31 @@ def load_county_data() -> Dict[str, Any]:
         tracts = [dict(x) for x in FALLBACK_TRACTS]
         sites = [dict(x) for x in FALLBACK_SITES]
 
+    lats = [float(t["latitude"]) for t in tracts if t.get("latitude") is not None]
+    lons = [float(t["longitude"]) for t in tracts if t.get("longitude") is not None]
+    center_lat = sum(lats) / len(lats) if lats else 33.749
+    center_lon = sum(lons) / len(lons) if lons else -84.388
+
     for t in tracts:
         t["need_score"] = compute_need_score(t)
+        t["location_label"] = resolve_location_label(t, center_lat, center_lon)
+        t["chronic_index"] = round(
+            (
+                float(t.get("pct_diabetes") or 0.0)
+                + float(t.get("pct_high_bp") or 0.0)
+                + float(t.get("pct_asthma") or 0.0)
+            )
+            / 3.0,
+            1,
+        )
+        t["senior_mobility_index"] = round(
+            (
+                float(t.get("pct_age_65_plus") or 12.0)
+                + float(t.get("pct_mobility_difficulty") or 12.0)
+            )
+            / 2.0,
+            1,
+        )
 
     sorted_tracts = sorted(tracts, key=lambda x: x["need_score"], reverse=True)
     recommended = []
@@ -362,15 +588,19 @@ def load_county_data() -> Dict[str, Any]:
         item = dict(stop)
         item["saturday_slot"] = saturdays[idx]
         item["rank"] = idx + 1
+        item["van_bubble_message"] = (
+            f"🚐 Doctor Van Stop #{idx + 1}: {item['location_label']} — "
+            f"+{item.get('extra_km_if_uninsured', 0)} km safety-net gap · "
+            f"{item.get('pct_uninsured', 0)}% uninsured"
+        )
         item["rationale"] = (
-            f"Tract {item['geo_id']} has a +{item.get('extra_km_if_uninsured', 0)} km safety-net "
+            f"{item['location_label']} (Tract {item['geo_id']}) has a +{item.get('extra_km_if_uninsured', 0)} km safety-net "
             f"access penalty ({item.get('km_to_safety_net', 0)} km to sliding-scale care vs. "
             f"{item.get('km_to_any_care', 0)} km to any clinic), {item.get('pct_uninsured', 0)}% "
             f"uninsured adults, and {item.get('pct_no_vehicle', 0)}% no-vehicle households."
         )
         recommended.append(item)
 
-    # Compute Post-Hoc Equity Audit metrics (Planner never saw SVI composite/demographic audit)
     def avg(items: List[Dict[str, Any]], key: str) -> float:
         vals = [float(x[key]) for x in items if x.get(key) is not None]
         return round(sum(vals) / len(vals), 2) if vals else 0.0
@@ -436,7 +666,7 @@ async def run_adk_agent(user_message: str, session_id: str, county_data: Dict[st
         f"Shortage Areas (HPSA): {county_data['shortage_areas_count']} | "
         f"Top 4 Saturday Recommended Tracts: "
         + "; ".join(
-            f"{s['saturday_slot']}: Tract {s['geo_id']} (Need Score {s['need_score']}, "
+            f"{s['saturday_slot']}: {s['location_label']} (Tract {s['geo_id']}, Need Score {s['need_score']}, "
             f"Uninsured {s['pct_uninsured']}%, Safety-Net Gap +{s['extra_km_if_uninsured']} km, "
             f"No-Vehicle {s['pct_no_vehicle']}%)"
             for s in top4
@@ -472,21 +702,19 @@ async def run_adk_agent(user_message: str, session_id: str, county_data: Dict[st
         if chunks:
             return "\n".join(chunks)
     except Exception as exc:
-        # Provide transparent fallback response if Vertex AI credentials aren't initialized yet
         return (
             f"**[Root Coordinator — {county_data['county_name']}]**\n\n"
             f"Hello! I am the **Dynamic Public Health Equity & Preventative Mobile Care Broker**.\n\n"
             f"Here is our current 4-Saturday Mobile Clinic Plan (computed at **Census Tract** resolution without race inputs):\n"
             + "\n".join(
-                f"- **{s['saturday_slot']} — Tract `{s['geo_id']}`** (Score `{s['need_score']}`): "
+                f"- **{s['saturday_slot']} — {s['location_label']} (`{s['geo_id']}`)** (Score `{s['need_score']}`): "
                 f"`+{s['extra_km_if_uninsured']} km` further to sliding-scale safety-net care "
                 f"(`{s['km_to_safety_net']} km` vs `{s['km_to_any_care']} km`), "
                 f"`{s['pct_uninsured']}%` uninsured, `{s['pct_no_vehicle']}%` no-vehicle households."
                 for s in top4
             )
             + f"\n\n**Equity Audit Verdict (`session.state['audit_result']`):** {audit['audit_summary']}\n\n"
-            f"*(Note: ADK live model call encountered `{type(exc).__name__}: {exc}` — make sure "
-            f"`GOOGLE_GENAI_USE_VERTEXAI=TRUE` and `GOOGLE_CLOUD_PROJECT` are exported in your terminal.)*"
+            f"*(Note: ADK live model call encountered `{type(exc).__name__}: {exc}`)*"
         )
 
     return "Hello! How would you like to plan or audit next month's mobile clinic stops?"
