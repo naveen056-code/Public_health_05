@@ -22,4 +22,6 @@ BIGQUERY_MCP_URL = "https://bigquery.googleapis.com/mcp"
 
 
 def table(name: str) -> str:
-    return f"`{PROJECT}.{DATASET}.{name}`"
+    if PROJECT:
+        return f"`{PROJECT}.{DATASET}.{name}`"
+    return f"`{DATASET}.{name}`"

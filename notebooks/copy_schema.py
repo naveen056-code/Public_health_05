@@ -4,7 +4,9 @@ from pathlib import Path
 from google.cloud import bigquery
 
 # Uses your environment project ID or notebook default
-PROJECT_ID = os.environ.get("GOOGLE_CLOUD_PROJECT", PROJECT if "PROJECT" in locals() else "qwiklabs-gcp-04-9ac0749d9f02")
+PROJECT_ID = os.environ.get("GOOGLE_CLOUD_PROJECT", PROJECT if "PROJECT" in locals() else "")
+if not PROJECT_ID:
+    raise ValueError("GOOGLE_CLOUD_PROJECT environment variable must be set.")
 DATASET_ID = "a4i_health"
 OUTPUT_DIR = Path("schemas")
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)

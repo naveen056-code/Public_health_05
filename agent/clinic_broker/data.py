@@ -138,7 +138,9 @@ def _km(a: dict, b: dict) -> float:
     x = (math.sin(p(b["latitude"] - a["latitude"]) / 2) ** 2
          + math.cos(p(a["latitude"])) * math.cos(p(b["latitude"]))
          * math.sin(p(b["longitude"] - a["longitude"]) / 2) ** 2)
-    return 2 * 6371 * math.asin(math.sqrt(x))
+    # Clamp x to [0.0, 1.0] to guard against floating-point imprecision causing math domain error
+    x_clamped = min(1.0, max(0.0, x))
+    return 2 * 6371 * math.asin(math.sqrt(x_clamped))
 
 
 def select_stops(ranked: list[dict], *, stops: int = 4, min_spacing_km: float = 5.0,

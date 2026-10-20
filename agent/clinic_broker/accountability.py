@@ -9,8 +9,13 @@ from __future__ import annotations
 import json
 import statistics
 
-from google.adk.agents.readonly_context import ReadonlyContext
-from google.adk.tools import BaseTool, ToolContext
+try:
+    from google.adk.agents.readonly_context import ReadonlyContext
+    from google.adk.tools import BaseTool, ToolContext
+except ImportError:
+    ReadonlyContext = None  # type: ignore
+    BaseTool = None  # type: ignore
+    ToolContext = None  # type: ignore
 
 from . import config
 

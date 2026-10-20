@@ -5,6 +5,7 @@ __pycache__/
 venv/
 env/
 *.egg-info/
+.pytest_cache/
 
 # adk web's local session store
 .adk/

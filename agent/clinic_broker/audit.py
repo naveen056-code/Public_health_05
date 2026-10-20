@@ -13,10 +13,16 @@ import re
 import threading
 
 import google.auth
-from google.adk.agents.callback_context import CallbackContext
-from google.adk.agents.readonly_context import ReadonlyContext
-from google.adk.tools.mcp_tool.mcp_session_manager import StreamableHTTPConnectionParams
-from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
+try:
+    from google.adk.agents.callback_context import CallbackContext
+    from google.adk.agents.readonly_context import ReadonlyContext
+    from google.adk.tools.mcp_tool.mcp_session_manager import StreamableHTTPConnectionParams
+    from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
+except ImportError:
+    CallbackContext = None  # type: ignore
+    ReadonlyContext = None  # type: ignore
+    StreamableHTTPConnectionParams = None  # type: ignore
+    McpToolset = None  # type: ignore
 from google.auth.transport.requests import Request
 
 from . import config
@@ -70,14 +76,14 @@ grp AS (
   UNION ALL SELECT 'county', geo_id FROM b
 )
 SELECT grp, COUNT(*) AS tracts, CAST(SUM(acs.total_pop) AS INT64) AS population,
-  ROUND(100 * SUM(black_pop) / SUM(acs.total_pop), 1)    AS pct_black_non_hispanic,
-  ROUND(100 * SUM(white_pop) / SUM(acs.total_pop), 1)    AS pct_white_non_hispanic,
-  ROUND(100 * SUM(hispanic_pop) / SUM(acs.total_pop), 1) AS pct_hispanic_any_race,
-  ROUND(100 * SUM(asian_pop) / SUM(acs.total_pop), 1)    AS pct_asian_non_hispanic,
-  ROUND(SUM(places_pop * pct_age_65_plus) / SUM(places_pop), 1)     AS pct_age_65_plus,
-  ROUND(SUM(places_pop * pct_limited_english) / SUM(places_pop), 1) AS pct_limited_english,
-  ROUND(SUM(places_pop * pct_any_disability) / SUM(places_pop), 1)  AS pct_any_disability,
-  ROUND(SUM(places_pop * pct_no_vehicle) / SUM(places_pop), 1)      AS pct_no_vehicle
+  ROUND(100 * SAFE_DIVIDE(SUM(black_pop), SUM(acs.total_pop)), 1)    AS pct_black_non_hispanic,
+  ROUND(100 * SAFE_DIVIDE(SUM(white_pop), SUM(acs.total_pop)), 1)    AS pct_white_non_hispanic,
+  ROUND(100 * SAFE_DIVIDE(SUM(hispanic_pop), SUM(acs.total_pop)), 1) AS pct_hispanic_any_race,
+  ROUND(100 * SAFE_DIVIDE(SUM(asian_pop), SUM(acs.total_pop)), 1)    AS pct_asian_non_hispanic,
+  ROUND(SAFE_DIVIDE(SUM(places_pop * pct_age_65_plus), SUM(places_pop)), 1)     AS pct_age_65_plus,
+  ROUND(SAFE_DIVIDE(SUM(places_pop * pct_limited_english), SUM(places_pop)), 1) AS pct_limited_english,
+  ROUND(SAFE_DIVIDE(SUM(places_pop * pct_any_disability), SUM(places_pop)), 1)  AS pct_any_disability,
+  ROUND(SAFE_DIVIDE(SUM(places_pop * pct_no_vehicle), SUM(places_pop)), 1)      AS pct_no_vehicle
 FROM grp JOIN acs USING (geo_id) JOIN b USING (geo_id)
 GROUP BY grp ORDER BY grp
 """.strip()
