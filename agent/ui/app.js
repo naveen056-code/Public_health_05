@@ -196,8 +196,10 @@ function onEvent(ev) {
   const parts = ev.content?.parts || [];
   const calls = parts.filter((p) => p.functionCall).map((p) => p.functionCall.name);
   if (!author || author === "user") return;
+  if (delta.request_flag) $("flag").hidden = false;
   if (calls.length) {
-    const what = { plan_saturdays: "running plan_saturdays (our tool)", rank_tracts: "running rank_tracts (our tool)",
+    const what = { flag_request: "flagged the request: it goes against the race guideline",
+      plan_saturdays: "running plan_saturdays (our tool)", rank_tracts: "running rank_tracts (our tool)",
       execute_sql_readonly: "querying Census race and ethnicity through BigQuery's MCP server" }[calls[0]] || calls[0];
     $("activity").textContent = `${author} · ${what}`;
   }
@@ -256,6 +258,7 @@ async function run(e) {
   const text = `Plan the four Saturdays of ${monthLabel(month)} (month ${month}).${extra ? " " + extra : ""}`;
   setBusy(true);
   resetStrip();
+  $("flag").hidden = true;
   steps[0].state = "running"; renderStrip();
   $("status").textContent = `Planning ${monthLabel(month)}…`;
   $("activity").textContent = "";
@@ -295,6 +298,8 @@ async function run(e) {
       if (b64) flyer = new TextDecoder().decode(Uint8Array.from(atob(b64.replace(/-/g, "+").replace(/_/g, "/")), (c) => c.charCodeAt(0)));
     } catch { /* the flyer tab says so */ }
     render(final.state, flyer);
+    current = { session_id: session.id, user_id: userId };
+    showPublish(final.state.audit_verdict);
     $("status").textContent = `Plan ready for ${monthLabel(month)}.`;
   } catch (err) {
     $("status").replaceChildren(el("span", "error", `The run stopped: ${err.message}. Try again; each run starts fresh.`));
@@ -303,6 +308,39 @@ async function run(e) {
     setBusy(false);
   }
 }
+
+// ---------------------------------------------------------------------------
+// Publishing to the community page
+// ---------------------------------------------------------------------------
+// The server re-reads the plan from this session (or the saved sample) itself; the page
+// only says which plan to publish.
+let current = null;
+
+function showPublish(verdict) {
+  $("publish").hidden = false;
+  $("publish").disabled = false;
+  $("publish").textContent = "Publish to the community page";
+  const ps = $("pub-status");
+  ps.hidden = verdict === "PASS";
+  ps.textContent = verdict === "PASS" ? "" : "The auditor still objects to this plan. Publish only if you have decided to overrule it.";
+}
+
+$("publish").addEventListener("click", async () => {
+  if (!current) return;
+  const btn = $("publish"), ps = $("pub-status");
+  btn.disabled = true; btn.textContent = "Publishing…";
+  try {
+    const r = await fetch("/api/publish", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(current) });
+    const body = await r.json();
+    if (!r.ok) throw new Error(body.detail || r.status);
+    btn.textContent = "Published ✓";
+    ps.hidden = false;
+    ps.replaceChildren(`Residents now see the ${monthLabel(body.month)} schedule on `, Object.assign(el("a", null, "the community page"), { href: "/community", target: "_blank" }), ".");
+  } catch (err) {
+    btn.disabled = false; btn.textContent = "Publish to the community page";
+    ps.hidden = false; ps.replaceChildren(el("span", "error", `Could not publish: ${err.message}`));
+  }
+});
 
 function setBusy(b) { $("run").disabled = b; $("sample").disabled = b; $("run").textContent = b ? "Planning…" : "Plan the month"; }
 
@@ -331,6 +369,8 @@ async function replaySample() {
     }
     $("activity").textContent = "";
     render(s, sample.flyer_html);
+    current = { sample: true };
+    showPublish(s.audit_verdict);
   } catch (err) {
     $("status").replaceChildren(el("span", "error", `Could not load the saved run: ${err.message}`));
   } finally {
@@ -350,6 +390,7 @@ function render(state, flyerHtml) {
 
   drawStops(stops, rejected);
   renderCards(stops, state.plan_runner_up);
+  $("flag").hidden = !state.request_flag;
 
   const v = $("verdict");
   v.hidden = !state.audit_verdict;

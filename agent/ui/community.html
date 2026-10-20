@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Free mobile clinic · Fulton County</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="/ui/styles.css">
+<link rel="stylesheet" href="/ui/community.css">
+</head>
+<body class="community">
+<header class="c-bar">
+  <div class="brand">
+    <span class="mark" aria-hidden="true">✚</span>
+    <div>
+      <p class="name" data-i18n="brand">Free mobile clinic</p>
+      <p class="county" data-i18n="county">Fulton County Health Department</p>
+    </div>
+  </div>
+  <div class="lang" role="group" aria-label="Language / Idioma">
+    <button type="button" data-lang="en" aria-pressed="true">English</button>
+    <button type="button" data-lang="es" aria-pressed="false">Español</button>
+  </div>
+</header>
+
+<main class="c-main">
+  <section class="hero">
+    <h1 data-i18n="headline">Is the free clinic van coming near you?</h1>
+    <p data-i18n="sub">Free blood pressure and blood sugar checks with a nurse practitioner. You do not need insurance.</p>
+    <p class="month" id="month-line"></p>
+  </section>
+
+  <div class="c-grid">
+    <figure class="mapcard">
+      <p class="tap" data-i18n="tap">Tap your neighborhood on the map</p>
+      <div class="mapwrap">
+        <svg id="cmap" role="img" aria-label="Map of Fulton County with this month's van stops"></svg>
+      </div>
+      <figcaption class="legend">
+        <span class="lg"><svg width="16" height="16" aria-hidden="true"><circle cx="8" cy="8" r="7" class="lg-stop"/></svg><span data-i18n="lg_stop">Van stop</span></span>
+        <span class="lg"><svg width="14" height="14" aria-hidden="true"><path d="M7 2v10M2 7h10" class="lg-cross"/></svg><span data-i18n="lg_clinic">Low-cost clinic</span></span>
+        <span class="lg"><i class="lg-you" aria-hidden="true"></i><span data-i18n="lg_you">Your area</span></span>
+      </figcaption>
+      <p class="privacy" data-i18n="privacy">Only the area you tap is sent to answer your questions. We never ask for your address or name.</p>
+    </figure>
+
+    <div class="side">
+      <section class="you" id="you" aria-live="polite">
+        <p class="you-k" data-i18n="your_area">Your area</p>
+        <p id="you-text" data-i18n="you_empty">Tap the map to see the closest van stop and low-cost clinics.</p>
+      </section>
+
+      <section class="chat" aria-labelledby="chat-h">
+        <div class="chat-head">
+          <h2 id="chat-h" data-i18n="ask">Ask a question</h2>
+          <button type="button" id="talk" class="talk" aria-pressed="false">
+            <span class="dot" aria-hidden="true"></span><span id="talk-label" data-i18n="talk">Talk</span>
+          </button>
+        </div>
+        <ol class="msgs-list" id="msgs" aria-live="polite"></ol>
+        <div class="chips" id="chips"></div>
+        <form class="ask" id="ask-form">
+          <label for="ask-input" class="sr" data-i18n="ask">Ask a question</label>
+          <input id="ask-input" autocomplete="off" data-i18n-ph="placeholder" placeholder="Type a question…">
+          <button type="submit" class="primary" data-i18n="send">Send</button>
+        </form>
+        <p class="voice-status" id="voice-status"></p>
+      </section>
+    </div>
+  </div>
+
+  <p class="c-note" data-i18n="note">This helper answers questions about the van's schedule and where to get care. It cannot give medical advice. In an emergency, call 911.</p>
+</main>
+
+<script src="/ui/community.js"></script>
+</body>
+</html>

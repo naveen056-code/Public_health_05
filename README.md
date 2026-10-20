@@ -14,6 +14,11 @@ to replay a saved run instantly. You see the agents working live, a county map w
 stops, the equity audit, the printable flyer and the funder statement. ADK's developer view
 with the event graph is at `/dev-ui/`.
 
+**For residents:** https://clinic-broker-ui-702160158477.us-east1.run.app/community: tap your
+area, see the closest van stop and low-cost clinics, and ask by text or **live voice** in
+English or Spanish. It answers from the plan the outreach lead publishes, and never gives
+medical advice.
+
 **Full write-up:** [`agent/README.md`](agent/README.md): architecture, who sees what, the
 four judge questions, the audit numbers, the scale of every claim, and how to run it.
 
@@ -23,7 +28,7 @@ four judge questions, the audit numbers, the scale of every claim, and how to ru
 |---|---|---|
 | 🚐 **Siting** (our lead) | ✅ Complete | Four dated Saturdays, each a named census tract with the numbers that put it there (every one labelled with its scale) and the nearest clinic that sees uninsured patients for follow-up care |
 | 📋 **Accountability** | ✅ Complete | An independent **equity audit** on Census race and ethnicity the planner never saw, which can reject the plan, plus an **accountability statement** for a funder or program director, built only from computed facts and the audit's own table |
-| 📣 **Explanation** | ✅ Complete | A **printable flyer**, one page per Saturday in English and Spanish; text messages; and a "why not us?" script for the neighborhood that just missed out |
+| 📣 **Explanation** | ✅ Complete | A **printable flyer**, one page per Saturday in English and Spanish; text messages; a "why not us?" script for the neighborhood that just missed out; and a **community page** where residents ask by text or live voice whether the van is coming near them |
 
 ## How it works
 
@@ -34,6 +39,7 @@ four judge questions, the audit numbers, the scale of every claim, and how to ru
 | Reviser | Fixes a rejected plan, with need-based changes only, and says up front if it overrode the request | The audit and the plan | Race or ethnicity |
 | Explainer | Writes the neighborhood copy, warm and plain, English and Spanish | The final stops | The analysis and the audit |
 | Accountability writer | Writes the plan up formally for a funder | Computed facts and the audit table | The raw tables |
+| Community helper (text and live voice) | Answers residents about the published schedule, in English or Spanish | The published plan and clinic list | The analysis, the audit, any demographics; it gives no medical advice |
 
 Evidence gathering runs as three parallel lookups, and the explainer and accountability writer
 also run in parallel. Built with Google ADK 2.7 and Gemini 3.6 Flash on BigQuery, deployed to
