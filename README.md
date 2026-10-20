@@ -127,7 +127,7 @@ Cloud Run.
 | [`agent/clinic_broker/`](agent/clinic_broker/) | The multi-agent pipeline described above |
 | [`agent/ui/`](agent/ui/) and [`agent/main.py`](agent/main.py) | The web interface and the server that hosts it with ADK's API |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Diagrams of how the agents communicate |
-| [`agent/agent.py`](agent/agent.py) | A separate single-agent coordinator from an earlier PR |
+| [`agent/coordinator/agent.py`](agent/coordinator/agent.py) | A separate single-agent coordinator from an earlier PR |
 | [`notebooks/`](notebooks/) | The organizers' data loader and explorer |
 | [`scripts/load.sh`](scripts/load.sh) | Headless data loader (needs bash 4; run it in Cloud Shell) |
 
