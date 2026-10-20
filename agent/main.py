@@ -21,7 +21,7 @@ from clinic_broker import data  # noqa: E402
 
 app = get_fast_api_app(
     agents_dir=str(HERE),
-    session_service_uri="memory://",
+    session_service_uri="sqlite:////tmp/sessions.db",
     artifact_service_uri="memory://",
     use_local_storage=False,
     web=True,

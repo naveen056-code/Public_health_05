@@ -706,12 +706,23 @@ async function run(e) {
         onEvent(ev);
       }
     }
-    const final = await fetch(`/apps/${APP}/users/${userId}/sessions/${session.id}`).then((r) => r.json());
+    let finalRes = await fetch(`/apps/${APP}/users/${userId}/sessions/${session.id}`);
+    if (!finalRes.ok) {
+      await new Promise((r) => setTimeout(r, 600));
+      finalRes = await fetch(`/apps/${APP}/users/${userId}/sessions/${session.id}`);
+    }
+    if (!finalRes.ok) throw new Error(`could not load session (${finalRes.status})`);
+    const final = await finalRes.json();
+    if (!final || !final.state) throw new Error(final?.detail || "no plan state returned from session");
+
     let flyer = "";
     try {
-      const art = await fetch(`/apps/${APP}/users/${userId}/sessions/${session.id}/artifacts/flyers.html`).then((r) => r.json());
-      const b64 = art.inlineData?.data || art.inline_data?.data;
-      if (b64) flyer = new TextDecoder().decode(Uint8Array.from(atob(b64.replace(/-/g, "+").replace(/_/g, "/")), (c) => c.charCodeAt(0)));
+      const artRes = await fetch(`/apps/${APP}/users/${userId}/sessions/${session.id}/artifacts/flyers.html`);
+      if (artRes.ok) {
+        const art = await artRes.json();
+        const b64 = art.inlineData?.data || art.inline_data?.data;
+        if (b64) flyer = new TextDecoder().decode(Uint8Array.from(atob(b64.replace(/-/g, "+").replace(/_/g, "/")), (c) => c.charCodeAt(0)));
+      }
     } catch { /* the flyer tab says so */ }
     render(final.state, flyer);
     $("status").textContent = `Plan ready for ${monthLabel(month)}.`;
@@ -761,6 +772,7 @@ async function replaySample() {
 // Rendering the result
 // ---------------------------------------------------------------------------
 function render(state, flyerHtml) {
+  if (!state) return;
   const stops = state.plan_stops || [];
   const versions = state.plan_versions || [];
   const audits = state.audit_history || [];
