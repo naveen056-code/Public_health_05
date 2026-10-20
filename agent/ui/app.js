@@ -30,9 +30,42 @@ try {
 } catch { userId = `lead-${Math.random().toString(36).slice(2, 10)}`; }
 
 // ---------------------------------------------------------------------------
-// Map
+// Leaflet Map & Interactive Visualizations
 // ---------------------------------------------------------------------------
-const map = { project: null, tracts: new Map(), sites: [], ready: null };
+const map = { tracts: new Map(), sites: [], ranked: 0 };
+let leafletMap = null;
+let tractGeoLayer = null;
+let sitesLayerGroup = null;
+let stopsLayerGroup = null;
+let routePolyline = null;
+let doctorVanMarker = null;
+let vanAnimFrame = null;
+let cachedGeoData = null;
+let currentMetric = "need_score";
+let activeStopIndex = -1;
+let lastStopsData = [];
+
+const METRIC_CONFIG = {
+  need_score: { label: "Need score, low → high", unit: "" },
+  pct_uninsured: { label: "Uninsured rate (18-64), low → high", unit: "%" },
+  pct_no_vehicle: { label: "Households without a vehicle, low → high", unit: "%" },
+  km_to_safety_net: { label: "Distance to safety-net clinic, low → high", unit: " km" },
+};
+
+const COLOR_RAMP = ["#e6efec", "#bcd9d2", "#82bcb0", "#3f9586", "#0d6b61"];
+const COLOR_RAMP_DARK = ["#1b2a27", "#1f4a42", "#2a6f63", "#3e9a8a", "#6fd3c2"];
+
+function getColorForQuintile(q) {
+  const isDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+  const ramp = isDark ? COLOR_RAMP_DARK : COLOR_RAMP;
+  return ramp[q] || ramp[2];
+}
+
+function getQuintile(val, minV, maxV) {
+  if (val == null || isNaN(val) || maxV <= minV) return 2;
+  const ratio = Math.max(0, Math.min(1, (val - minV) / (maxV - minV)));
+  return Math.min(4, Math.max(0, Math.floor(ratio * 5)));
+}
 
 function nextMonth() {
   const d = new Date();
@@ -45,100 +78,362 @@ async function loadMap() {
     fetch("/ui/fulton_tracts_2020.geojson").then((r) => r.json()),
     fetch("/api/map").then((r) => { if (!r.ok) throw new Error("map data unavailable"); return r.json(); }),
   ]);
-  layers.tracts.forEach((t) => map.tracts.set(t.geo_id, t));
+  cachedGeoData = geo;
+  layers.tracts.forEach((t) => map.tracts.set(String(t.geo_id), t));
   map.sites = layers.sites;
   map.ranked = layers.tracts_ranked;
   $("county").textContent = `${layers.county} · mobile clinic`;
-  drawMap(geo);
+
+  initLeaflet(geo, layers);
 }
 
-function drawMap(geo) {
-  // Equirectangular with a cos(latitude) correction: at county scale it is indistinguishable
-  // from a proper projection and needs no library.
-  let minX = 180, maxX = -180, minY = 90, maxY = -90;
-  const each = (coords, fn) => coords.forEach((ring) => ring.forEach(([x, y]) => fn(x, y)));
-  geo.features.forEach((f) => {
-    const polys = f.geometry.type === "Polygon" ? [f.geometry.coordinates] : f.geometry.coordinates;
-    polys.forEach((p) => each(p, (x, y) => {
-      minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y);
-    }));
-  });
-  const k = Math.cos(((minY + maxY) / 2) * Math.PI / 180);
-  const W = 520, scale = W / ((maxX - minX) * k), H = Math.round((maxY - minY) * scale);
-  map.project = (lon, lat) => [((lon - minX) * k * scale).toFixed(1), ((maxY - lat) * scale).toFixed(1)];
+function initLeaflet(geo, layers) {
+  if (leafletMap) { leafletMap.remove(); }
 
-  const svg = $("map");
-  svg.setAttribute("viewBox", `-8 -8 ${W + 16} ${H + 16}`);
-  svg.replaceChildren();
-  const gT = svgEl("g"), gS = svgEl("g"), gV1 = svgEl("g", { id: "v1-layer" }), gP = svgEl("g", { id: "stop-layer" });
+  leafletMap = L.map("map", {
+    zoomControl: true,
+    scrollWheelZoom: true,
+    doubleClickZoom: true,
+  }).setView([33.78, -84.42], 10);
 
-  geo.features.forEach((f) => {
-    const id = f.properties.geo_id;
-    const t = map.tracts.get(id);
-    const polys = f.geometry.type === "Polygon" ? [f.geometry.coordinates] : f.geometry.coordinates;
-    const d = polys.map((p) => p.map((ring) => "M" + ring.map(([x, y]) => map.project(x, y).join(",")).join("L") + "Z").join("")).join("");
-    const q = t ? Math.min(4, Math.floor((1 - (t.need_rank - 1) / map.ranked) * 5)) : null;
-    const path = svgEl("path", { d, class: `tract ${t ? "q" + q : "na"}`, "data-id": id });
-    gT.appendChild(path);
-  });
-  map.sites.filter((s) => s.safety_net).forEach((s) => {
-    const [x, y] = map.project(s.lon, s.lat);
-    const g = svgEl("g", { class: "site", transform: `translate(${x},${y})` });
-    g.appendChild(svgEl("path", { d: "M0,-4V4M-4,0H4" }));
-    g.appendChild(Object.assign(svgEl("title"), { textContent: `${s.name}${s.hours_per_week ? ` · ${Math.round(s.hours_per_week)} h/week` : ""}` }));
-    gS.appendChild(g);
-  });
-  svg.append(gT, gS, gV1, gP);
+  const esriDark = L.tileLayer(
+    "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}",
+    { maxZoom: 16, attribution: "&copy; Esri &mdash; Esri, DeLorme, NAVTEQ" }
+  );
+  const esriLabels = L.tileLayer(
+    "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}",
+    { maxZoom: 16 }
+  );
+  const darkCanvas = L.layerGroup([esriDark, esriLabels]).addTo(leafletMap);
 
-  const tip = $("tip");
-  const show = (e) => {
-    const id = e.target.getAttribute?.("data-id");
-    if (!id) { tip.hidden = true; return; }
-    const t = map.tracts.get(id);
-    tip.replaceChildren();
-    tip.append(el("b", null, `Tract ${id}`));
-    if (t) {
-      tip.append(el("div", null, `Need rank ${t.need_rank} of ${map.ranked} · ${fmt(t.population)} people`));
-      tip.append(el("div", null, `${t.pct_uninsured}% of adults 18-64 uninsured (modeled)`));
-      tip.append(el("div", null, `${t.pct_no_vehicle}% of households without a car`));
-      tip.append(el("div", null, `${t.km_to_safety_net} km to a safety-net clinic (straight line)`));
+  const osmTiles = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: "&copy; OpenStreetMap contributors",
+  });
+
+  L.control.layers({ "Dark Canvas": darkCanvas, "Street Map": osmTiles }, null, { position: "topright" }).addTo(leafletMap);
+
+  sitesLayerGroup = L.layerGroup().addTo(leafletMap);
+  stopsLayerGroup = L.layerGroup().addTo(leafletMap);
+
+  renderTractPolygons(geo, currentMetric);
+  renderClinics(layers.sites);
+
+  if (tractGeoLayer) {
+    leafletMap.fitBounds(tractGeoLayer.getBounds(), { padding: [12, 12] });
+  }
+
+  // Setup metric switcher buttons
+  document.querySelectorAll(".metric-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".metric-btn").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      currentMetric = btn.getAttribute("data-metric");
+      renderTractPolygons(cachedGeoData, currentMetric);
+      updateLegendLabel(currentMetric);
+    });
+  });
+
+  const resetBtn = $("reset-map");
+  if (resetBtn) {
+    resetBtn.addEventListener("click", () => {
+      if (tractGeoLayer) leafletMap.fitBounds(tractGeoLayer.getBounds(), { padding: [12, 12] });
+    });
+  }
+
+  const tourBtn = $("anim-tour-btn");
+  if (tourBtn) {
+    tourBtn.addEventListener("click", () => {
+      if (lastStopsData && lastStopsData.length) tourRoute(lastStopsData);
+    });
+  }
+}
+
+function updateLegendLabel(metricKey) {
+  const cfg = METRIC_CONFIG[metricKey] || METRIC_CONFIG.need_score;
+  const lbl = $("legend-label");
+  if (lbl) lbl.textContent = cfg.label;
+}
+
+function renderTractPolygons(geo, metricKey) {
+  if (tractGeoLayer) { leafletMap.removeLayer(tractGeoLayer); }
+
+  const values = [];
+  map.tracts.forEach((t) => {
+    const val = Number(t[metricKey]);
+    if (!isNaN(val)) values.push(val);
+  });
+  const minV = values.length ? Math.min(...values) : 0;
+  const maxV = values.length ? Math.max(...values) : 1;
+
+  tractGeoLayer = L.geoJSON(geo, {
+    style: (feature) => {
+      const id = String(feature.properties.geo_id);
+      const t = map.tracts.get(id);
+      let q = 0;
+      if (t) {
+        if (metricKey === "need_score") {
+          q = Math.min(4, Math.max(0, Math.floor((1 - (t.need_rank - 1) / map.ranked) * 5)));
+        } else {
+          q = getQuintile(Number(t[metricKey]), minV, maxV);
+        }
+      }
+      return {
+        fillColor: t ? getColorForQuintile(q) : "#19211f",
+        weight: 0.8,
+        opacity: 0.7,
+        color: "#0f172a",
+        fillOpacity: t ? 0.75 : 0.25,
+      };
+    },
+    onEachFeature: (feature, layer) => {
+      const id = String(feature.properties.geo_id);
+      const t = map.tracts.get(id);
+
+      layer.on({
+        mouseover: (e) => {
+          const l = e.target;
+          l.setStyle({ weight: 2.2, color: "#ffffff", fillOpacity: 0.92 });
+          l.bringToFront();
+          if (stopsLayerGroup) stopsLayerGroup.eachLayer((sl) => sl.bringToFront?.());
+          if (doctorVanMarker) doctorVanMarker.bringToFront?.();
+        },
+        mouseout: (e) => {
+          tractGeoLayer.resetStyle(e.target);
+        },
+      });
+
+      const tooltipContent = t
+        ? `<div class="leaflet-tooltip-dark">
+             <b>Tract ${id}</b>
+             <div class="tt-row">Need rank: <b>#${t.need_rank}</b> of ${map.ranked} (${fmt(t.population)} people)</div>
+             <div class="tt-row">${t.pct_uninsured}% adults uninsured</div>
+             <div class="tt-row">${t.pct_no_vehicle}% households without car</div>
+             <div class="tt-row">${t.km_to_safety_net} km to safety-net clinic</div>
+           </div>`
+        : `<div class="leaflet-tooltip-dark"><b>Tract ${id}</b><div class="tt-sub">Under 500 people: not ranked</div></div>`;
+
+      layer.bindTooltip(tooltipContent, { sticky: true, className: "leaflet-tooltip-pane" });
+    },
+  }).addTo(leafletMap);
+}
+
+function renderClinics(sites) {
+  sitesLayerGroup.clearLayers();
+  sites.filter((s) => s.safety_net).forEach((s) => {
+    const lat = Number(s.lat), lon = Number(s.lon);
+    if (isNaN(lat) || isNaN(lon)) return;
+
+    const crossIcon = L.divIcon({
+      className: "",
+      html: `<div class="clinic-icon" title="${s.name}">
+               <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor">
+                 <path d="M6 1h4v4h4v4h-4v4H6V9H2V5h4V1z" />
+               </svg>
+             </div>`,
+      iconSize: [18, 18],
+      iconAnchor: [9, 9],
+    });
+
+    const m = L.marker([lat, lon], { icon: crossIcon });
+    const hours = s.hours_per_week ? `${Math.round(s.hours_per_week)} h/week` : "Hours not published";
+    m.bindPopup(`
+      <div style="font-family: sans-serif; font-size: 12px; color: #0f172a; line-height: 1.4;">
+        <b style="font-size: 13px; color: #0284c7;">✚ ${s.name}</b>
+        <div style="margin-top: 4px; color: #475569;">Safety-net provider (${s.kind})</div>
+        <div style="margin-top: 2px; font-weight: 600;">Operating hours: ${hours}</div>
+      </div>
+    `);
+    sitesLayerGroup.addLayer(m);
+  });
+}
+
+function buildDoctorVanHtml(stop, stopLabel) {
+  const ref = stop.refer_to || {};
+  const refName = ref.display_name || ref.name || "Nearby safety-net clinic";
+  const label = stopLabel || (stop.saturday_en || "Saturday Stop");
+  return `
+    <div class="doctor-van-wrapper">
+      <div class="van-speech-bubble">
+        <div class="van-bubble-title">🩺 ${label}</div>
+        <div class="van-bubble-sub">Tract ${stop.geo_id} · Rank #${stop.need_rank || 1}</div>
+        <div class="van-bubble-ref">↪ Refer: ${refName}</div>
+      </div>
+      <div class="doctor-van-pulse"></div>
+      <div class="doctor-van-body" title="Mobile Health Clinic Van">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+          <path d="M3 7C3 5.89543 3.89543 5 5 5H15V16H3V7Z" fill="#ffffff"/>
+          <path d="M15 8H18.5858C18.851 8 19.1054 8.10536 19.2929 8.29289L21.7071 10.7071C21.8946 10.8946 22 11.149 22 11.4142V16H15V8Z" fill="#a7f3d0"/>
+          <circle cx="7" cy="16.5" r="2.2" fill="#0f172a" stroke="#ffffff" stroke-width="1.5"/>
+          <circle cx="18" cy="16.5" r="2.2" fill="#0f172a" stroke="#ffffff" stroke-width="1.5"/>
+          <path d="M9 8.5V12.5M7 10.5H11" stroke="#ef4444" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </div>
+    </div>
+  `;
+}
+
+function animateDoctorVanTo(targetStop, label, durationMs = 1100, onComplete = null) {
+  if (!leafletMap || !targetStop) return;
+  const t = map.tracts.get(String(targetStop.geo_id));
+  const targetLat = Number(targetStop.latitude || (t ? t.lat : null));
+  const targetLon = Number(targetStop.longitude || (t ? t.lon : null));
+  if (isNaN(targetLat) || isNaN(targetLon)) return;
+
+  if (!doctorVanMarker) {
+    const icon = L.divIcon({
+      className: "",
+      html: buildDoctorVanHtml(targetStop, label),
+      iconSize: [50, 50],
+      iconAnchor: [25, 25],
+    });
+    doctorVanMarker = L.marker([targetLat, targetLon], { icon, zIndexOffset: 2500 }).addTo(leafletMap);
+    if (onComplete) onComplete();
+    return;
+  }
+
+  const startLatLng = doctorVanMarker.getLatLng();
+  const startLat = startLatLng.lat;
+  const startLon = startLatLng.lng;
+  const startTime = performance.now();
+
+  if (vanAnimFrame) cancelAnimationFrame(vanAnimFrame);
+
+  function step(now) {
+    const elapsed = now - startTime;
+    const prog = Math.min(1, elapsed / durationMs);
+    const ease = prog < 0.5 ? 4 * prog * prog * prog : 1 - Math.pow(-2 * prog + 2, 3) / 2;
+    const curLat = startLat + (targetLat - startLat) * ease;
+    const curLon = startLon + (targetLon - startLon) * ease;
+    doctorVanMarker.setLatLng([curLat, curLon]);
+
+    if (prog < 1) {
+      vanAnimFrame = requestAnimationFrame(step);
     } else {
-      tip.append(el("div", null, "Under 500 people: not ranked"));
+      const finalIcon = L.divIcon({
+        className: "",
+        html: buildDoctorVanHtml(targetStop, label),
+        iconSize: [50, 50],
+        iconAnchor: [25, 25],
+      });
+      doctorVanMarker.setIcon(finalIcon);
+      if (onComplete) onComplete();
     }
-    const box = svg.parentElement.getBoundingClientRect();
-    const x = (e.clientX ?? 0) - box.left, y = (e.clientY ?? 0) - box.top;
-    tip.style.left = `${Math.min(x + 14, box.width - 250)}px`;
-    tip.style.top = `${y + 14}px`;
-    tip.hidden = false;
-  };
-  svg.addEventListener("mousemove", show);
-  svg.addEventListener("click", show);
-  svg.addEventListener("mouseleave", () => { tip.hidden = true; });
+  }
+
+  const drivingIcon = L.divIcon({
+    className: "",
+    html: buildDoctorVanHtml(targetStop, label),
+    iconSize: [50, 50],
+    iconAnchor: [25, 25],
+  });
+  doctorVanMarker.setIcon(drivingIcon);
+  vanAnimFrame = requestAnimationFrame(step);
+}
+
+function highlightStopCard(idx) {
+  activeStopIndex = idx;
+  const cards = document.querySelectorAll("#stops .card");
+  cards.forEach((c, i) => {
+    if (i === idx) {
+      c.classList.add("active-stop");
+      c.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    } else {
+      c.classList.remove("active-stop");
+    }
+  });
+}
+
+function tourRoute(stops) {
+  if (!stops || stops.length === 0) return;
+  let idx = 0;
+  function next() {
+    if (idx >= stops.length) return;
+    const s = stops[idx];
+    highlightStopCard(idx);
+    const t = map.tracts.get(String(s.geo_id));
+    const lat = Number(s.latitude || (t ? t.lat : null));
+    const lon = Number(s.longitude || (t ? t.lon : null));
+    if (!isNaN(lat) && !isNaN(lon)) {
+      leafletMap.panTo([lat, lon], { animate: true, duration: 0.8 });
+    }
+    animateDoctorVanTo(s, `Saturday ${idx + 1}`, 1100, () => {
+      idx++;
+      if (idx < stops.length) {
+        setTimeout(next, 1300);
+      }
+    });
+  }
+  next();
 }
 
 function drawStops(stops, rejected) {
-  const layer = $("stop-layer"), ghost = $("v1-layer");
-  if (!layer || !map.project) return;
-  layer.replaceChildren(); ghost.replaceChildren();
+  stopsLayerGroup.clearLayers();
+  if (routePolyline) { leafletMap.removeLayer(routePolyline); routePolyline = null; }
+  lastStopsData = stops;
+
+  const latlngs = [];
+
   rejected.forEach((id) => {
-    const t = map.tracts.get(id);
-    if (!t) return;
-    const [x, y] = map.project(t.lon, t.lat);
-    const g = svgEl("g", { class: "ghost-stop", transform: `translate(${x},${y})` });
-    g.appendChild(svgEl("circle", { r: 10 }));
-    g.appendChild(Object.assign(svgEl("text", { y: -14 }), { textContent: "v1" }));
-    ghost.appendChild(g);
+    const t = map.tracts.get(String(id));
+    if (!t || isNaN(Number(t.lat)) || isNaN(Number(t.lon))) return;
+    const ghostIcon = L.divIcon({
+      className: "",
+      html: `<div class="ghost-badge" title="Tract ${id} (Rejected in v1)">v1</div>`,
+      iconSize: [26, 26],
+      iconAnchor: [13, 13],
+    });
+    const m = L.marker([Number(t.lat), Number(t.lon)], { icon: ghostIcon, zIndexOffset: 1000 });
+    m.bindTooltip(`<b>Rejected v1 stop:</b> Tract ${id}`, { className: "leaflet-tooltip-dark" });
+    stopsLayerGroup.addLayer(m);
   });
+
   stops.forEach((s, i) => {
-    const t = map.tracts.get(s.geo_id);
-    if (!t) return;
-    const [x, y] = map.project(t.lon, t.lat);
-    const g = svgEl("g", { class: "stop", transform: `translate(${x},${y})` });
-    g.appendChild(svgEl("circle", { r: 11 }));
-    g.appendChild(Object.assign(svgEl("text"), { textContent: String(i + 1) }));
-    layer.appendChild(g);
+    const t = map.tracts.get(String(s.geo_id));
+    const lat = Number(s.latitude || (t ? t.lat : null));
+    const lon = Number(s.longitude || (t ? t.lon : null));
+    if (isNaN(lat) || isNaN(lon)) return;
+
+    latlngs.push([lat, lon]);
+
+    const stopIcon = L.divIcon({
+      className: "",
+      html: `<div class="stop-badge" title="Saturday ${i + 1}: Tract ${s.geo_id}">${i + 1}</div>`,
+      iconSize: [28, 28],
+      iconAnchor: [14, 14],
+    });
+
+    const m = L.marker([lat, lon], { icon: stopIcon, zIndexOffset: 1500 });
+    m.on("click", () => {
+      highlightStopCard(i);
+      leafletMap.flyTo([lat, lon], 12, { duration: 0.9 });
+      animateDoctorVanTo(s, `Saturday ${i + 1}`);
+    });
+    m.bindTooltip(`<b>Saturday ${i + 1} (${s.saturday_en || s.saturday})</b><br>Tract ${s.geo_id} · Rank #${s.need_rank}`, {
+      className: "leaflet-tooltip-dark",
+    });
+    stopsLayerGroup.addLayer(m);
   });
+
   $("lg-v1").hidden = rejected.length === 0;
+
+  if (latlngs.length > 1) {
+    routePolyline = L.polyline(latlngs, {
+      className: "van-route-line",
+      color: "#10b981",
+      weight: 3.5,
+      opacity: 0.9,
+    }).addTo(leafletMap);
+  }
+
+  const tourBtn = $("anim-tour-btn");
+  if (tourBtn) tourBtn.hidden = stops.length === 0;
+
+  if (latlngs.length > 0) {
+    const bounds = L.latLngBounds(latlngs);
+    leafletMap.fitBounds(bounds, { padding: [50, 50], maxZoom: 12 });
+    setTimeout(() => { tourRoute(stops); }, 600);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -381,6 +676,8 @@ function renderCards(stops, runner) {
   box.replaceChildren();
   stops.forEach((s, i) => {
     const c = el("article", "card");
+    c.setAttribute("role", "button");
+    c.setAttribute("tabindex", "0");
     c.append(el("span", "num", String(i + 1)));
     c.append(el("h3", null, s.saturday_en || s.saturday));
     const meta = el("p", "meta");
@@ -400,6 +697,23 @@ function renderCards(stops, runner) {
       r.append(el("span", null, "Follow-up care: "), `${s.refer_to.display_name || s.refer_to.name}, ${s.refer_to.address} · ${hours}`);
       c.append(r);
     }
+    const selectStop = () => {
+      highlightStopCard(i);
+      const t = map.tracts.get(String(s.geo_id));
+      const lat = Number(s.latitude || (t ? t.lat : null));
+      const lon = Number(s.longitude || (t ? t.lon : null));
+      if (!isNaN(lat) && !isNaN(lon)) {
+        leafletMap.flyTo([lat, lon], 12, { duration: 0.9 });
+      }
+      animateDoctorVanTo(s, `Saturday ${i + 1}`);
+    };
+    c.addEventListener("click", selectStop);
+    c.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        selectStop();
+      }
+    });
     box.append(c);
   });
   const rn = $("runner");

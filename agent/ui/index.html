@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="/ui/styles.css">
 </head>
 <body>
@@ -52,13 +53,25 @@
 
   <div class="workspace">
     <figure class="mapcard">
+      <div class="map-controls">
+        <div class="metric-picker" id="metric-picker">
+          <button type="button" class="metric-btn active" data-metric="need_score">Need Score</button>
+          <button type="button" class="metric-btn" data-metric="pct_uninsured">Uninsured %</button>
+          <button type="button" class="metric-btn" data-metric="pct_no_vehicle">No Vehicle %</button>
+          <button type="button" class="metric-btn" data-metric="km_to_safety_net">Clinic Distance</button>
+        </div>
+        <div class="map-actions">
+          <button type="button" class="anim-btn" id="anim-tour-btn" title="Animate route tour" hidden>🚐 Tour Route</button>
+          <button type="button" class="reset-map-btn" id="reset-map" title="Reset map view">Reset View ⟲</button>
+        </div>
+      </div>
       <div class="mapwrap">
-        <svg id="map" role="img" aria-label="Map of Fulton County census tracts shaded by need, with the planned stops numbered"></svg>
+        <div id="map"></div>
         <div class="tip" id="tip" hidden></div>
       </div>
       <figcaption class="legend" id="legend">
         <span class="ramp" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
-        <span>Need score, low → high</span>
+        <span id="legend-label">Need score, low → high</span>
         <span class="lg"><svg width="14" height="14" aria-hidden="true"><path d="M7 2v10M2 7h10" class="lg-cross"/></svg>Safety-net clinic</span>
         <span class="lg"><svg width="16" height="16" aria-hidden="true"><circle cx="8" cy="8" r="7" class="lg-stop"/></svg>Planned stop</span>
         <span class="lg" id="lg-v1" hidden><svg width="16" height="16" aria-hidden="true"><circle cx="8" cy="8" r="6.5" class="lg-ghost"/></svg>Rejected first plan</span>
@@ -103,6 +116,7 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.3.0/marked.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="/ui/app.js"></script>
 </body>
 </html>
