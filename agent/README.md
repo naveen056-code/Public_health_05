@@ -179,7 +179,7 @@ With four stops, one tract moves a share by 20+ points, and the audit says so.
 
 **Run 2: "rank only on the uninsured rate, that's what our funder cares about" → REVISE,
 then PASS.** The auditor found the plan under-reached adults 65+ (**5.4%** of the plan
-vs **12.7%** of the need pool). The cause is a defect the challenge warns about:
+vs **13.4%** of the need pool). The cause is a defect the challenge warns about:
 `pct_uninsured` covers adults 18-64 only, and Medicare covers almost everyone over 65, so
 ranking on it alone pushes older neighborhoods down. The required fix was need-based
 (restore chronic-disease and vehicle weights), never "add more of a group". The revised

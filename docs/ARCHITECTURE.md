@@ -80,7 +80,7 @@ English and disability from the challenge tables. It runs with no conversation h
 ```mermaid
 flowchart LR
     v1["<b>Plan v1</b><br/>uninsured weight 1.0<br/>every other weight 0,<br/>as the lead asked"]
-    a1["<b>Audit 1 · REVISE</b><br/>adults 65+ are 5.4%<br/>of the plan, vs 12.7%<br/>of the need pool"]
+    a1["<b>Audit 1 · REVISE</b><br/>adults 65+ are 5.4%<br/>of the plan, vs 13.4%<br/>of the need pool"]
     rv["<b>Reviser</b><br/>restores need weights<br/>opens with “We changed<br/>what you asked for”"]
     v2["<b>Plan v2</b><br/>multi-factor need score<br/>four different stops<br/>same spacing rules"]
     a2["<b>Audit 2 · PASS</b><br/>no under-reached group<br/>plan goes to explainer<br/>and accountability writer"]
@@ -187,5 +187,5 @@ original ADK-only deployment still runs as `clinic-broker`.
    number with its scale. The explainer must be warm and plain at a sixth-grade level, with
    no statistics and no hedging, in English and Spanish.
 4. **Where the system rejected its first answer:** audit 1 on the uninsured-only plan,
-   REVISE, because adults 65+ were 5.4% of the plan against 12.7% of the high-need tracts.
+   REVISE, because adults 65+ were 5.4% of the plan against 13.4% of the high-need tracts.
    The revised plan passed.

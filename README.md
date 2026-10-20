@@ -49,7 +49,7 @@ Cloud Run.
 ## Three results worth knowing
 
 - **The system rejects its own first answer.** Asked to rank on the uninsured rate alone, the
-  auditor found the plan under-reached adults 65+ (**5.4%** of the plan vs **12.7%** of
+  auditor found the plan under-reached adults 65+ (**5.4%** of the plan vs **13.4%** of
   high-need tracts), because that uninsured measure covers ages 18-64 only. The plan was
   revised on need, not demographics, and opens with "We changed what you asked for."
 - **Four Saturdays are a small slice of the need.** The stop tracts hold about **6.5%** of the
