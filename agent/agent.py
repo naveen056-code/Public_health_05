@@ -27,8 +27,8 @@ When the user says hello or starts the conversation:
      2. **Accountability (Equity Audit)**: Audit a proposed 4-Saturday clinic schedule against county demographics.
      3. **Explanation (Community Outreach)**: Create plain-language, multilingual neighborhood communication explaining why the van is visiting.
 3. Keep every claim honest about spatial resolution:
-   - `burden_tracts` & `tract_access`: Census Tract resolution
-   - `exposure_tracts` (PM2.5): 12 km modeling grid
+   - `burden_tracts` & `tract_access`: Census Tract resolution (modeled prevalence from CDC PLACES & ACS SVI)
+   - `exposure_tracts` (PM2.5): 12 km modeling grid wearing a tract ID
    - `disease_weekly`: Multi-county Health Service Area (HSA) region
    - Never use race/ethnicity as a ranking input; reserve demographic data strictly for post-plan equity auditing.
 """,

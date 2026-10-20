@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Public Health Equity & Mobile Care Broker — ADK Command Center</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    body {
+      background-color: #0b1120;
+      color: #e2e8f0;
+      font-family: Inter, system-ui, -apple-system, sans-serif;
+    }
+    #map {
+      height: 440px;
+      width: 100%;
+      border-radius: 0.75rem;
+      z-index: 10;
+    }
+    .van-marker {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 34px;
+      height: 34px;
+      border-radius: 9999px;
+      background: linear-gradient(135deg, #f97316, #ef4444);
+      color: #ffffff;
+      font-weight: 800;
+      font-size: 13px;
+      border: 2px solid #ffffff;
+      box-shadow: 0 0 0 5px rgba(249, 115, 22, 0.35);
+    }
+    .leaflet-popup-content-wrapper {
+      background: #1e293b;
+      color: #f8fafc;
+      border: 1px solid #334155;
+      border-radius: 0.5rem;
+    }
+    .leaflet-popup-tip {
+      background: #1e293b;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+  <!-- Top Header -->
+  <header class="border-b border-slate-800 bg-slate-900/90 backdrop-blur px-6 py-3 flex flex-wrap items-center justify-between gap-4">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-rose-600 flex items-center justify-center text-lg font-bold shadow-lg">
+        🚐
+      </div>
+      <div>
+        <h1 class="text-lg font-bold tracking-tight text-white">
+          Dynamic Public Health Equity &amp; Preventative Mobile Care Broker
+        </h1>
+        <p class="text-xs text-slate-400">
+          Agents for Impact 2026 · Challenge 5 · ADK Multi-Agent Siting, Equity Audit &amp; Community Outreach
+        </p>
+      </div>
+    </div>
+    <div class="flex items-center gap-3 text-xs">
+      <span id="countyBadge" class="px-3 py-1.5 rounded-full bg-indigo-500/20 border border-indigo-400/40 text-indigo-200 font-medium">
+        Loading County...
+      </span>
+      <span id="sourceBadge" class="px-3 py-1.5 rounded-full bg-emerald-500/15 border border-emerald-400/30 text-emerald-300">
+        Connecting...
+      </span>
+    </div>
+  </header>
+
+  <!-- Main 12-Col Grid -->
+  <main class="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-5 p-5 max-w-[1680px] w-full mx-auto">
+    <!-- Left / Center 7 Cols: Interactive Map + 4-Saturday Clinic Plan + Equity Audit -->
+    <section class="lg:col-span-7 flex flex-col gap-5">
+      <!-- Map Card -->
+      <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 shadow-xl">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+          <div>
+            <h2 class="text-sm font-semibold text-white flex items-center gap-2">
+              <span>🗺️ County Siting Map &amp; Safety-Net Access Gap</span>
+              <span class="text-[11px] px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
+                Resolution: Census Tract + Facility Points
+              </span>
+            </h2>
+            <p class="text-xs text-slate-400">
+              Click any tract, clinic, or Saturday 1–4 card below to inspect uninsured distance gaps (`extra_km_if_uninsured`).
+            </p>
+          </div>
+          <!-- Map Legend -->
+          <div class="flex flex-wrap items-center gap-3 text-[11px] text-slate-300">
+            <span class="flex items-center gap-1.5">
+              <span class="w-3 h-3 rounded-full bg-orange-500 inline-block border border-white"></span>
+              Sat 1–4 Van Stops
+            </span>
+            <span class="flex items-center gap-1.5">
+              <span class="w-3 h-3 rounded-full bg-rose-500/80 inline-block"></span>
+              High Need Tract
+            </span>
+            <span class="flex items-center gap-1.5">
+              <span class="w-3 h-3 rounded-full bg-emerald-400 inline-block"></span>
+              Safety-Net Clinic (FQHC/HRSA)
+            </span>
+            <span class="flex items-center gap-1.5">
+              <span class="w-3 h-3 rounded-full bg-sky-400 inline-block"></span>
+              Hospital / Other Clinic
+            </span>
+          </div>
+        </div>
+        <div id="map"></div>
+      </div>
+
+      <!-- 4-Saturday Clinic Plan Decision Cards -->
+      <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4 shadow-xl">
+        <div class="flex items-center justify-between mb-3">
+          <div>
+            <h2 class="text-sm font-semibold text-white">
+              📅 Next Month's 4-Saturday Mobile Clinic Schedule (Siting Planner Output)
+            </h2>
+            <p class="text-xs text-slate-400">
+              Ranked without race/ethnicity inputs using safety-net distance penalty, uninsured share, no-vehicle access, and chronic burden.
+            </p>
+          </div>
+          <span class="text-[11px] font-mono px-2.5 py-1 rounded bg-orange-500/15 text-orange-300 border border-orange-500/30">
+            session.state["proposed_plan"]
+          </span>
+        </div>
+        <div id="saturdayCards" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+
+      <!-- Multi-Agent Equity Audit & Resolution Honesty Bar -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4">
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="text-xs font-semibold uppercase tracking-wider text-emerald-400">
+              ⚖️ Post-Hoc Equity Audit Agent
+            </h3>
+            <span class="text-[11px] font-mono px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+              session.state["audit_result"]
+            </span>
+          </div>
+          <p id="auditSummaryText" class="text-xs text-slate-300 leading-relaxed mb-3">
+            Loading audit...
+          </p>
+          <div id="auditMetrics" class="grid grid-cols-2 gap-2 text-xs"></div>
+        </div>
+
+        <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-4">
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="text-xs font-semibold uppercase tracking-wider text-amber-400">
+              🔍 Multi-Resolution Data Guardrails
+            </h3>
+            <span class="text-[11px] px-2 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">
+              4 Distinct Grains
+            </span>
+          </div>
+          <ul class="text-xs text-slate-300 space-y-1.5">
+            <li>
+              <strong class="text-white">• Census Tract (`burden_tracts`, `tract_access`):</strong>
+              Modeled CDC PLACES prevalence &amp; SVI vehicle/uninsured barriers (~4,000 residents).
+            </li>
+            <li>
+              <strong class="text-white">• Facility Point (`care_sites`):</strong>
+              Federal CMS &amp; HRSA clinics; distances are upper bounds.
+            </li>
+            <li>
+              <strong class="text-white">• 12 km Grid (`exposure_tracts`):</strong>
+              EPA PM2.5 surface on tract IDs—cannot separate adjacent streets.
+            </li>
+            <li>
+              <strong class="text-white">• Multi-County HSA (`disease_weekly`):</strong>
+              Regional ED COVID/Flu/RSV trend (<span id="covidWeeksLabel">--</span> usable weeks); never cited as street-level.
+            </li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- Right 5 Cols: ADK Agent Prompt & Interactive Conversation -->
+    <section class="lg:col-span-5 flex flex-col bg-slate-900/95 border border-slate-800 rounded-xl shadow-xl overflow-hidden h-[860px]">
+      <!-- Chat Header -->
+      <div class="px-4 py-3 border-b border-slate-800 bg-slate-950/60 flex items-center justify-between">
+        <div>
+          <h2 class="text-sm font-semibold text-white flex items-center gap-2">
+            <span>🤖 ADK Root Coordinator (`public_health_equity_broker`)</span>
+          </h2>
+          <p class="text-xs text-slate-400">
+            Say <code class="text-orange-300">hello</code> or ask about clinic siting, equity audits, or bilingual flyers.
+          </p>
+        </div>
+        <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" title="ADK Agent Ready"></span>
+      </div>
+
+      <!-- Quick Starter Prompts -->
+      <div class="px-4 py-2.5 bg-slate-900 border-b border-slate-800 flex flex-wrap gap-1.5">
+        <button onclick="sendQuickPrompt('Hello! Let us start the mobile clinic planning flow.')"
+          class="text-xs px-2.5 py-1 rounded-full bg-orange-500/20 hover:bg-orange-500/30 text-orange-200 border border-orange-500/40 transition">
+          👋 Say "Hello"
+        </button>
+        <button onclick="sendQuickPrompt('Where should the mobile clinic van park on the 4 Saturdays next month, and why those tracts?')"
+          class="text-xs px-2.5 py-1 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition">
+          🚐 Plan 4 Saturdays
+        </button>
+        <button onclick="sendQuickPrompt('Run the post-hoc equity audit on the 4 recommended tracts and tell me what data we could not see.')"
+          class="text-xs px-2.5 py-1 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition">
+          ⚖️ Equity Audit
+        </button>
+        <button onclick="sendQuickPrompt('Write a warm, 6th-grade reading level English and Spanish community flyer for Saturday 1 explaining why the van is coming.')"
+          class="text-xs px-2.5 py-1 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition">
+          📣 Bilingual Flyer (EN/ES)
+        </button>
+      </div>
+
+      <!-- Chat Message History -->
+      <div id="chatMessages" class="flex-1 overflow-y-auto p-4 space-y-3 text-sm">
+        <div class="bg-slate-800/80 border border-slate-700/80 rounded-xl p-3.5 text-slate-200">
+          <div class="text-xs font-semibold text-orange-400 mb-1">
+            ADK Root Agent · public_health_equity_broker
+          </div>
+          <p class="text-xs leading-relaxed text-slate-300">
+            Welcome! Click <strong>👋 Say "Hello"</strong> above or type your prompt below to start planning next month's 4 Saturday mobile clinic stops, inspect the post-hoc equity audit, or generate bilingual community outreach flyers.
+          </p>
+        </div>
+      </div>
+
+      <!-- Prompt Input Form -->
+      <form id="chatForm" onsubmit="handleChatSubmit(event)" class="p-3 border-t border-slate-800 bg-slate-950/80 flex gap-2">
+        <input
+          id="chatInput"
+          type="text"
+          placeholder="Say hello, or ask why a census tract was chosen..."
+          class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-orange-500"
+          required
+        />
+        <button
+          id="sendBtn"
+          type="submit"
+          class="px-4 py-2.5 rounded-lg bg-gradient-to-r from-orange-500 to-rose-600 hover:from-orange-400 hover:to-rose-500 text-white font-semibold text-sm shadow transition"
+        >
+          Send
+        </button>
+      </form>
+    </section>
+  </main>
+
+  <script>
+    let map;
+    let tractMarkers = {};
+    let globalData = null;
+
+    function initMap() {
+      map = L.map("map").setView([33.749, -84.388], 10);
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+        attribution: "&copy; OpenStreetMap &copy; CARTO",
+        maxZoom: 18,
+      }).addTo(map);
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+    }
+
+    function formatMarkdown(text) {
+      let html = escapeHtml(text);
+      html = html.replace(/\*\*(.*?)\*\*/g, "<strong class='text-white font-semibold'>$1</strong>");
+      html = html.replace(/`([^`]+)`/g, "<code class='px-1 py-0.5 rounded bg-slate-950 text-orange-300 font-mono text-xs'>$1</code>");
+      html = html.replace(/\n/g, "<br/>");
+      return html;
+    }
+
+    async function loadDashboardData() {
+      const res = await fetch("/api/map-data");
+      const data = await res.json();
+      globalData = data;
+
+      document.getElementById("countyBadge").textContent =
+        `${data.county_name} · ${data.total_tracts} Tracts · ${data.total_sites} Clinics`;
+      document.getElementById("sourceBadge").textContent = data.source_mode;
+      document.getElementById("covidWeeksLabel").textContent =
+        `${data.usable_covid_weeks} usable weeks, HPSA Areas: ${data.shortage_areas_count}`;
+
+      const bounds = [];
+      const topIds = new Set(data.recommended_stops.map((s) => String(s.geo_id)));
+
+      // Plot all tracts
+      data.tracts.forEach((t) => {
+        if (!t.latitude || !t.longitude) return;
+        bounds.push([t.latitude, t.longitude]);
+        const isRecommended = topIds.has(String(t.geo_id));
+        if (isRecommended) return; // Plotted prominently below
+
+        const score = t.need_score || 0;
+        const color = score >= 55 ? "#f43f5e" : score >= 40 ? "#fb923c" : "#64748b";
+        const circle = L.circleMarker([t.latitude, t.longitude], {
+          radius: score >= 55 ? 6 : 4.5,
+          fillColor: color,
+          color: "#0f172a",
+          weight: 1,
+          opacity: 0.9,
+          fillOpacity: 0.75,
+        }).addTo(map);
+
+        circle.bindPopup(`
+          <div class="text-xs space-y-1">
+            <div class="font-bold text-white border-b border-slate-700 pb-1">Census Tract ${t.geo_id}</div>
+            <div>Need Score: <strong>${t.need_score}</strong> | Pop: ${t.total_pop || "N/A"}</div>
+            <div>Safety-Net Gap: <strong class="text-orange-400">+${t.extra_km_if_uninsured} km</strong> (${t.km_to_safety_net} km vs ${t.km_to_any_care} km)</div>
+            <div>Uninsured (18–64): <strong>${t.pct_uninsured}%</strong> | No Vehicle: <strong>${t.pct_no_vehicle}%</strong></div>
+            <div>Diabetes: ${t.pct_diabetes}% | High BP: ${t.pct_high_bp}% | Routine Checkup: ${t.pct_checkup}%</div>
+          </div>
+        `);
+        tractMarkers[String(t.geo_id)] = circle;
+      });
+
+      // Plot Care Sites
+      data.sites.forEach((s) => {
+        if (!s.latitude || !s.longitude) return;
+        const color = s.is_safety_net ? "#34d399" : "#38bdf8";
+        const marker = L.circleMarker([s.latitude, s.longitude], {
+          radius: 5.5,
+          fillColor: color,
+          color: "#ffffff",
+          weight: 1.5,
+          fillOpacity: 0.9,
+        }).addTo(map);
+
+        marker.bindPopup(`
+          <div class="text-xs space-y-1">
+            <div class="font-bold text-emerald-300">${escapeHtml(s.name)}</div>
+            <div>Type: <strong>${escapeHtml(s.site_kind)}</strong> (${s.is_safety_net ? "Sliding-Scale Safety-Net" : "Standard Facility"})</div>
+            <div>Operating Hours: <strong>${s.hours_per_week} hrs/wk</strong></div>
+          </div>
+        `);
+      });
+
+      // Plot Recommended 4 Saturday Stops
+      const cardsContainer = document.getElementById("saturdayCards");
+      cardsContainer.innerHTML = "";
+
+      data.recommended_stops.forEach((stop) => {
+        const icon = L.divIcon({
+          className: "",
+          html: `<div class="van-marker">S${stop.rank}</div>`,
+          iconSize: [34, 34],
+          iconAnchor: [17, 17],
+        });
+        const vanMarker = L.marker([stop.latitude, stop.longitude], { icon }).addTo(map);
+        vanMarker.bindPopup(`
+          <div class="text-xs space-y-1.5">
+            <div class="font-bold text-orange-400 text-sm">${stop.saturday_slot} · Tract ${stop.geo_id}</div>
+            <div class="text-slate-200">${escapeHtml(stop.rationale)}</div>
+            <div class="pt-1 border-t border-slate-700 text-slate-300">
+              Need Score: <strong>${stop.need_score}</strong> · Diabetes: <strong>${stop.pct_diabetes}%</strong> · High BP: <strong>${stop.pct_high_bp}%</strong>
+            </div>
+          </div>
+        `);
+        tractMarkers[String(stop.geo_id)] = vanMarker;
+
+        const card = document.createElement("div");
+        card.className =
+          "p-3 rounded-lg bg-slate-800/80 hover:bg-slate-800 border border-slate-700 hover:border-orange-500/60 cursor-pointer transition";
+        card.onclick = () => focusTract(String(stop.geo_id));
+        card.innerHTML = `
+          <div class="flex items-center justify-between mb-1">
+            <span class="text-xs font-bold text-orange-400">${stop.saturday_slot}</span>
+            <span class="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-900 text-white border border-slate-700">
+              Tract ${stop.geo_id} · Score ${stop.need_score}
+            </span>
+          </div>
+          <p class="text-xs text-slate-300 leading-snug mb-2">
+            +${stop.extra_km_if_uninsured} km safety-net gap (${stop.km_to_safety_net} km to FQHC vs ${stop.km_to_any_care} km any clinic)
+          </p>
+          <div class="flex flex-wrap gap-2 text-[11px] text-slate-400">
+            <span>Uninsured: <strong class="text-slate-200">${stop.pct_uninsured}%</strong></span>
+            <span>No Vehicle: <strong class="text-slate-200">${stop.pct_no_vehicle}%</strong></span>
+            <span>High BP: <strong class="text-slate-200">${stop.pct_high_bp}%</strong></span>
+          </div>
+        `;
+        cardsContainer.appendChild(card);
+      });
+
+      if (bounds.length > 0) {
+        map.fitBounds(bounds, { padding: [25, 25] });
+      }
+
+      // Populate Equity Audit
+      const a = data.equity_audit;
+      document.getElementById("auditSummaryText").textContent = a.audit_summary;
+      document.getElementById("auditMetrics").innerHTML = `
+        <div class="p-2 rounded bg-slate-800/70 border border-slate-700/70">
+          <div class="text-[10px] text-slate-400">Safety-Net Gap (Plan vs County)</div>
+          <div class="text-sm font-bold text-white">+${a.plan_avg_extra_km} km <span class="text-xs font-normal text-slate-400">vs +${a.county_avg_extra_km} km</span></div>
+        </div>
+        <div class="p-2 rounded bg-slate-800/70 border border-slate-700/70">
+          <div class="text-[10px] text-slate-400">Uninsured 18–64 (Plan vs County)</div>
+          <div class="text-sm font-bold text-white">${a.plan_avg_uninsured}% <span class="text-xs font-normal text-slate-400">vs ${a.county_avg_uninsured}%</span></div>
+        </div>
+      `;
+    }
+
+    function focusTract(geoId) {
+      const marker = tractMarkers[geoId];
+      if (marker) {
+        const latLng = marker.getLatLng();
+        map.flyTo(latLng, 13, { duration: 0.9 });
+        marker.openPopup();
+      }
+    }
+
+    function appendMessage(role, text) {
+      const container = document.getElementById("chatMessages");
+      const div = document.createElement("div");
+      if (role === "user") {
+        div.className = "bg-indigo-600/25 border border-indigo-500/40 rounded-xl p-3 text-slate-100 ml-8";
+        div.innerHTML = `<div class="text-[11px] font-semibold text-indigo-300 mb-0.5">You</div><div class="text-xs leading-relaxed">${escapeHtml(text)}</div>`;
+      } else {
+        div.className = "bg-slate-800/90 border border-slate-700 rounded-xl p-3.5 text-slate-200 mr-4";
+        div.innerHTML = `<div class="text-[11px] font-semibold text-orange-400 mb-1">ADK Root Agent · public_health_equity_broker</div><div class="text-xs leading-relaxed">${formatMarkdown(text)}</div>`;
+      }
+      container.appendChild(div);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    async function sendQuickPrompt(promptText) {
+      const input = document.getElementById("chatInput");
+      input.value = promptText;
+      await submitPrompt(promptText);
+    }
+
+    async function handleChatSubmit(e) {
+      e.preventDefault();
+      const input = document.getElementById("chatInput");
+      const text = input.value.trim();
+      if (!text) return;
+      await submitPrompt(text);
+    }
+
+    async function submitPrompt(text) {
+      const input = document.getElementById("chatInput");
+      const btn = document.getElementById("sendBtn");
+      input.value = "";
+      btn.disabled = true;
+      btn.textContent = "Thinking...";
+
+      appendMessage("user", text);
+
+      try {
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: text, session_id: "web-map-session" }),
+        });
+        const data = await res.json();
+        appendMessage("agent", data.reply);
+        if (data.highlight_tracts && data.highlight_tracts.length > 0) {
+          focusTract(data.highlight_tracts[0]);
+        }
+      } catch (err) {
+        appendMessage("agent", "Error communicating with ADK backend: " + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Send";
+      }
+    }
+
+    window.addEventListener("DOMContentLoaded", () => {
+      initMap();
+      loadDashboardData();
+    });
+  </script>
+</body>
+</html>
