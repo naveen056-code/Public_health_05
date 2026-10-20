@@ -9,7 +9,6 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
@@ -22,11 +21,16 @@ AGENT_DIR = ROOT_DIR / "agent"
 if str(AGENT_DIR) not in sys.path:
     sys.path.insert(0, str(AGENT_DIR))
 
-load_dotenv(AGENT_DIR / "clinic_broker" / ".env", override=False)
+try:
+    from dotenv import load_dotenv
 
-from agent.clinic_broker import audit as cb_audit
-from agent.clinic_broker import config as cb_config
-from agent.clinic_broker import data as cb_data
+    load_dotenv(AGENT_DIR / "clinic_broker" / ".env", override=False)
+except Exception:
+    pass
+
+from clinic_broker import audit as cb_audit
+from clinic_broker import config as cb_config
+from clinic_broker import data as cb_data
 
 try:
     from google.adk.cli.fast_api import get_fast_api_app
@@ -44,14 +48,13 @@ except Exception:
         title="Public Health Equity & Preventative Mobile Care Broker",
         description="Interactive Map, clinic_broker Multi-Agent Pipeline & Prompt UI",
     )
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 UI_PATH = ROOT_DIR / "ui" / "index.html"
 COMMUNITY_UI_PATH = AGENT_DIR / "ui" / "community.html"
@@ -1191,7 +1194,7 @@ async def run_adk_agent(
     """Runs the authoritative `clinic_broker` SequentialAgent and extracts updated session state."""
     global _ADK_RUNNER
     try:
-        from agent.clinic_broker.agent import root_agent
+        from clinic_broker.agent import root_agent
         from google.adk.runners import InMemoryRunner
         from google.genai import types
 
@@ -1375,8 +1378,8 @@ async def voice_chat_endpoint(req: VoiceChatRequest):
         if use_vertex:
             client = genai.Client(
                 vertexai=True,
-                project=os.environ.get("GOOGLE_CLOUD_PROJECT", PROJECT_ID),
-                location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
+                project=os.environ.get("GOOGLE_CLOUD_PROJECT") or cb_config.PROJECT,
+                location=os.environ.get("GOOGLE_CLOUD_LOCATION", "global"),
             )
         else:
             client = genai.Client()
@@ -1399,7 +1402,7 @@ async def voice_chat_endpoint(req: VoiceChatRequest):
             f"EQUITY AUDIT: {audit.get('verdict')} — {audit.get('audit_summary')}\n"
         )
         resp = client.models.generate_content(
-            model=os.environ.get("CLINIC_BROKER_MODEL", "gemini-2.5-flash"),
+            model=os.environ.get("CLINIC_BROKER_MODEL", cb_config.MODEL),
             contents=msg,
             config=types.GenerateContentConfig(
                 system_instruction=sys_instruction,
