@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import calendar
 import datetime as dt
+import json
 import math
 import re
 from functools import lru_cache
@@ -230,13 +231,117 @@ def map_layers() -> dict:
     } for r in ranked_tracts()]
     sites = _rows(f"""
       SELECT FACILITY_NM AS name, site_kind AS kind, latitude AS lat, longitude AS lon,
-             TOT_OPER_HR_PER_WEEK AS hours_per_week
+             TOT_OPER_HR_PER_WEEK AS hours_per_week,
+             CONCAT(CMS_PROVIDER_ADDRESS, ', ', CMS_PROVIDER_CITY) AS address
       FROM {config.table('care_sites')} WHERE latitude IS NOT NULL""")
     for s in sites:
         s["name"] = display_name(s["name"])
         s["safety_net"] = s["kind"] in SAFETY_NET_KINDS
     return {"county": config.COUNTY_NAME, "tracts_ranked": len(tracts),
             "tracts": tracts, "sites": sites}
+
+
+# ---------------------------------------------------------------------------
+# The published plan: what the community page and the community helper answer from
+# ---------------------------------------------------------------------------
+# Only what a resident needs leaves the planning side: dates, stops, follow-up clinics,
+# the neighborhood copy and the runner-up's reason. No audit table, no demographics.
+
+def _published_table() -> str:
+    return f"{config.PROJECT}.{config.DATASET}.published_plans"
+
+
+def publishable(state: dict) -> dict:
+    """The resident-facing slice of a finished plan."""
+    stops = state.get("plan_stops") or []
+    if len(stops) == 0:
+        raise ValueError("this session has no finished plan to publish")
+    return {
+        "county": config.COUNTY_NAME,
+        "month": (state.get("plan_params") or {}).get("month") or stops[0]["saturday"][:7],
+        "audit_verdict": state.get("audit_verdict"),
+        "stops": [{
+            "geo_id": s["geo_id"], "saturday": s["saturday"],
+            "saturday_en": s.get("saturday_en"), "saturday_es": s.get("saturday_es"),
+            "refer_to": {k: (s.get("refer_to") or {}).get(k)
+                         for k in ("display_name", "address", "city", "hours_per_week")},
+        } for s in stops],
+        "runner_up": {k: (state.get("plan_runner_up") or {}).get(k) for k in ("geo_id", "why_not")},
+        "outreach": state.get("outreach") or {},
+    }
+
+
+def publish_plan(payload: dict) -> dict:
+    client = _client()
+    client.query(f"""CREATE TABLE IF NOT EXISTS `{_published_table()}` (
+        published_at TIMESTAMP, county_fips STRING, month STRING, payload STRING)""").result()
+    now = dt.datetime.now(dt.timezone.utc)
+    errors = client.insert_rows_json(_published_table(), [{
+        "published_at": now.isoformat(), "county_fips": config.COUNTY_FIPS,
+        "month": payload["month"], "payload": json.dumps(payload)}])
+    if errors:
+        raise RuntimeError(f"BigQuery refused the row: {errors}")
+    _latest_cache.clear()
+    return {"published_at": now.isoformat(), "month": payload["month"]}
+
+
+_latest_cache: dict = {}
+
+
+def latest_published() -> dict | None:
+    """The newest published plan for this county, cached for a minute."""
+    hit = _latest_cache.get("v")
+    if hit and (dt.datetime.now().timestamp() - hit[0]) < 60:
+        return hit[1]
+    try:
+        rows = _rows(f"""SELECT payload, CAST(published_at AS STRING) published_at
+                         FROM `{_published_table()}` WHERE county_fips = @fips
+                         ORDER BY published_at DESC LIMIT 1""",
+                     [bigquery.ScalarQueryParameter("fips", "STRING", config.COUNTY_FIPS)])
+    except Exception:  # the table does not exist until the first publish
+        rows = []
+    plan = None
+    if rows:
+        plan = json.loads(rows[0]["payload"])
+        plan["published_at"] = rows[0]["published_at"]
+    _latest_cache["v"] = (dt.datetime.now().timestamp(), plan)
+    return plan
+
+
+def stop_for_tract(geo_id: str) -> dict:
+    """For one resident's area: is the van coming, and if not, the closest stop and the
+    closest clinics that see people without insurance. Straight-line distances only."""
+    layers = map_layers()
+    tracts = {t["geo_id"]: t for t in layers["tracts"]}
+    here = tracts.get(geo_id)
+    if here is None:
+        cen = _rows(f"SELECT latitude, longitude FROM {config.table('burden_tracts')} WHERE geo_id = @g",
+                    [bigquery.ScalarQueryParameter("g", "STRING", geo_id)])
+        if not cen:
+            return {"found": False, "note": "That area is not in this county's data."}
+        here = {"geo_id": geo_id, "lat": cen[0]["latitude"], "lon": cen[0]["longitude"]}
+    pt = {"latitude": here["lat"], "longitude": here["lon"]}
+    plan = latest_published()
+    out = {"found": True, "tract": geo_id, "plan_published": plan is not None,
+           "distance_note": "straight-line distance; the trip may be longer by road or bus"}
+    if plan:
+        stops = []
+        for s in plan["stops"]:
+            t = tracts.get(s["geo_id"])
+            if t:
+                km = _km(pt, {"latitude": t["lat"], "longitude": t["lon"]})
+                stops.append({**s, "km_from_you": round(km, 1)})
+        stops.sort(key=lambda s: s["km_from_you"])
+        out["van_comes_here"] = any(s["geo_id"] == geo_id for s in plan["stops"])
+        out["closest_stop"] = stops[0] if stops else None
+        out["month"] = plan["month"]
+    clinics = sorted(
+        ({"name": s["name"], "address": s["address"], "hours_per_week": s["hours_per_week"],
+          "km_from_you": round(_km(pt, {"latitude": s["lat"], "longitude": s["lon"]}), 1)}
+         for s in layers["sites"] if s["safety_net"]),
+        key=lambda c: c["km_from_you"])
+    out["closest_low_cost_clinics"] = clinics[:2]
+    return out
 
 
 # ---------------------------------------------------------------------------

@@ -1,8 +1,9 @@
 # Clinic Broker architecture
 
 Five Gemini agents and five code steps decide where Fulton County's mobile clinic parks on
-next month's four Saturdays. This page shows how they pass work to each other, what each
-one is allowed to see, and where it all runs. The code is in
+next month's four Saturdays, and two more (one for text, one for live voice) answer
+residents' questions about the published plan. This page shows how they pass work to each
+other, what each one is allowed to see, and where it all runs. The code is in
 [`agent/clinic_broker/`](../agent/clinic_broker/); the full write-up is in
 [`agent/README.md`](../agent/README.md).
 
@@ -93,6 +94,32 @@ change only need and access settings, never pick a tract by its racial makeup. A
 gate, `revise_if_rejected`, lets the reviser run only after a REVISE, at most twice, and the
 loop always ends on an audit, so no plan ships unchecked.
 
+## The community side
+
+The outreach lead publishes a finished plan; residents then ask about it on `/community`,
+by text or live voice. Only the resident-facing slice of the plan is published: no audit
+table, no demographics.
+
+```mermaid
+flowchart LR
+    lead(["Outreach lead<br/>presses Publish"])
+    pub[("BigQuery · published_plans<br/>dates, stops, follow-up clinics,<br/>neighborhood copy")]
+    resident(["Resident<br/>taps their area"])
+    chat(["community_helper<br/>text · gemini-3.6-flash · global"])
+    voice(["community_voice<br/>live voice · Gemini Live · us-central1"])
+    tools["get_published_plan<br/>find_my_stop (our tools)"]
+    lead -->|"/api/publish (server reads the session)"| pub
+    resident -->|"/run_sse"| chat
+    resident -->|"/run_live websocket · 16 kHz up, 24 kHz down"| voice
+    chat --> tools
+    voice --> tools
+    tools --> pub
+```
+
+Both helpers share one instruction: answer about the van (when, where, what it offers,
+where else to go), never give medical advice, never ask for personal details, never describe
+a neighborhood's illness rates or who lives there, and send emergencies to 911.
+
 ## Who sees what
 
 | Agent | Challenge tables | Census race and ethnicity | Planner's reasoning | The plan | The audit |
@@ -102,6 +129,7 @@ loop always ends on an audit, so no plan ships unchecked.
 | **Reviser** | Yes, via our tools | No | No | Yes, rewrites it | Yes |
 | **Explainer** | No | No | No | Final stops only | No |
 | **Accountability writer** | Computed facts | Audit's group shares only | No | Yes | Yes |
+| **Community helper** (text, voice) | Clinic list only | No | No | Published slice only | No |
 
 ## Shared state
 

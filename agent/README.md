@@ -17,6 +17,43 @@ numbered, the Saturday cards, and tabs for the equity audit, the printable flyer
 funder statement and the limits. ADK's developer UI, with the event graph and State tab,
 is still at `/dev-ui/` on the same service.
 
+**For residents:** https://clinic-broker-ui-702160158477.us-east1.run.app/community: a
+neighbor taps their area on the map and sees the closest van stop and low-cost clinics,
+then asks questions by text or by **live voice**, in English or Spanish. It answers from the
+plan the outreach lead published with the **Publish to the community page** button.
+
+## The community helper
+
+Two more agents, one for text and one for voice, share one instruction and two tools
+([`community_helper/core.py`](community_helper/core.py)):
+
+- `get_published_plan`: this month's published stops, follow-up clinics and approved
+  messages, read from the `published_plans` BigQuery table.
+- `find_my_stop`: for the area the resident tapped, whether the van comes there, the closest
+  stop and the two closest low-cost clinics (straight-line distance).
+
+Its instruction draws the line the challenge asks for: it answers about the van (when,
+where, what it offers, where else to go) and never gives medical advice, never asks for a
+name, address or health information, never describes a neighborhood's illness rates or who
+lives there, and sends emergencies to 911. Tested: a Spanish question gets a Spanish answer
+with the real closest stop; "I have chest pain and my sugar is 300, what should I take?"
+gets "Please call 911 right now."
+
+| App | Model | Location | Used by |
+|---|---|---|---|
+| `community_helper` | `gemini-3.6-flash` | `global` | The chat box (`/run_sse`) |
+| `community_voice` | `gemini-live-2.5-flash-native-audio` | `us-central1` | The Talk button (`/run_live` websocket: 16 kHz PCM up, 24 kHz PCM down, live transcripts) |
+
+The Live model is served only from `us-central1` in the lab project and the text models only
+from `global`, so the voice agent pins its own location with a small `Gemini` subclass
+([`community_voice/agent.py`](community_voice/agent.py)).
+
+**Publishing** copies only what a resident needs (dates, stops, follow-up clinics, the
+neighborhood copy, the runner-up's reason) into `a4i_health.published_plans`; no audit
+table, no demographics. The server reads the plan from the agents' own session, never from
+the request body, so residents see what the planner and auditor produced. A plan the auditor
+still objects to can be published only after the page warns the outreach lead.
+
 ## What it produces: the Clinic Plan
 
 1. **Where the van goes, and why.** Four dated Saturdays, each a named census tract with
@@ -150,6 +187,14 @@ plan opens with *"We changed what you asked for"*, saying what was asked, what c
 and that the original is still available: overriding the user is the outreach lead's call
 to see, not ours to hide.
 
+**Run 3: "only go to the tracts with the highest % of white people" → flagged.** The
+planner called our `flag_request` tool first (state key `request_flag`), so the interface
+shows a warning that the request goes against the race guideline while the agents are still
+running. It then planned on need with the default weights and no tracts added or removed;
+the plan opens with one line saying the request was not followed. The audit confirms there
+was no proxy: White non-Hispanic residents are 6.8% of the plan vs 11.8% of the need pool
+and 39.3% of the county. A plain "plan the month" request is not flagged.
+
 The rule for disagreements: the reviser may change only need and access parameters. If an
 equity finding cannot be fixed that way, it keeps the stops and reports an *open
 disagreement with the audit* for the outreach lead to decide.
@@ -232,7 +277,9 @@ tract tables are 2010 boundaries and match only 108 of Fulton's 326 tracts.
 | [`accountability.py`](clinic_broker/accountability.py) | Computed facts, the audit-table capture, and the accountability writer's instruction |
 | [`workflow.py`](clinic_broker/workflow.py) | Model-free agents: evidence lookups, conditional reviser, report and artifacts |
 | [`../main.py`](main.py) | The web server: ADK's API, our interface at `/`, the developer UI at `/dev-ui/`, and `/api/map` |
-| [`../ui/`](ui/) | The interface: `index.html`, `styles.css`, `app.js`, tract boundaries and the saved sample run |
+| [`../ui/`](ui/) | The planner's interface (`index.html`, `app.js`), the community page (`community.html`, `community.js`, `pcm-worklet.js`), shared styles, tract boundaries and the saved sample run |
+| [`../community_helper/`](community_helper/) | The community helper's instruction, tools and text agent |
+| [`../community_voice/`](community_voice/) | The same helper on Gemini Live, pinned to `us-central1` |
 
 ---
 

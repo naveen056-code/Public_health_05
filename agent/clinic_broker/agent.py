@@ -36,7 +36,7 @@ def _planner(name: str, instruction: str, include_contents: str) -> LlmAgent:
         model=config.MODEL,
         description="Picks four Saturday stops for the mobile clinic from need and access data.",
         instruction=instruction,
-        tools=[tools.plan_saturdays, tools.rank_tracts],
+        tools=[tools.flag_request, tools.plan_saturdays, tools.rank_tracts],
         output_key="plan",
         include_contents=include_contents,
         generate_content_config=_precise,
