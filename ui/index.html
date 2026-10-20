@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Public Health Equity & Mobile Care Broker — ADK Command Center</title>
+  <title>Public Health Equity & Mobile Care Broker — clinic_broker ADK Command Center</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link
     rel="stylesheet"
@@ -21,7 +21,7 @@
       overflow-x: hidden;
     }
     #map {
-      height: 490px;
+      height: 480px;
       width: 100%;
       border-radius: 0.85rem;
       z-index: 10;
@@ -126,6 +126,22 @@
       pointer-events: none;
     }
 
+    /* Runner-Up Pin */
+    .runner-up-pin {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 26px;
+      height: 26px;
+      border-radius: 9999px;
+      background: rgba(234, 179, 8, 0.92);
+      color: #0f172a;
+      font-weight: 800;
+      font-size: 10px;
+      border: 2px dashed #ffffff;
+      box-shadow: 0 0 0 3px rgba(234, 179, 8, 0.3);
+    }
+
     /* Animated Doctor Van & Floating Speech Bubble on Top */
     .doctor-van-wrapper {
       position: relative;
@@ -173,7 +189,7 @@
       bottom: 58px;
       left: 50%;
       transform: translateX(-50%);
-      width: 245px;
+      width: 260px;
       background: linear-gradient(145deg, rgba(15, 23, 42, 0.97), rgba(30, 41, 59, 0.97));
       border: 1.5px solid #34d399;
       border-radius: 12px;
@@ -207,11 +223,6 @@
       animation: bubblePop 0.42s var(--ease-spring) forwards;
     }
 
-    /* Smooth Transition for Audit Bars */
-    .audit-bar {
-      transition: width 0.9s var(--ease-spring);
-    }
-
     .leaflet-popup-content-wrapper {
       background: #0f172a;
       color: #f8fafc;
@@ -235,11 +246,11 @@
         <h1 class="text-lg font-bold tracking-tight text-white flex items-center gap-2">
           Dynamic Public Health Equity &amp; Preventative Mobile Care Broker
           <span class="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-semibold">
-            Live Doctor Van Dispatch
+            clinic_broker Pipeline
           </span>
         </h1>
         <p class="text-xs text-slate-400">
-          Challenge 5 · Multi-Agent Siting, Demographic Equity Audit &amp; Population Heatmap
+          5-Stage ADK SequentialAgent: Parallel Evidence → Siting Planner (5km spacing) → BigQuery MCP Equity Audit Loop → Bilingual Explainer
         </p>
       </div>
     </div>
@@ -251,15 +262,56 @@
       <span id="sourceBadge" class="px-3 py-1.5 rounded-full bg-emerald-950/60 border border-emerald-700/60 text-emerald-300">
         Connecting...
       </span>
-      <span class="px-3 py-1.5 rounded-full bg-indigo-950/60 border border-indigo-700/60 text-indigo-300">
-        Model Input Rule: Race Excluded ✅
+      <span class="px-3 py-1.5 rounded-full bg-indigo-950/60 border border-indigo-700/60 text-indigo-300" title="agent/clinic_broker/data.py never reads race; only audit.py queries Census ACS via MCP">
+        Planner Race-Blind · Auditor MCP ACS ✅
       </span>
     </div>
   </header>
 
+  <!-- 5-Stage `clinic_broker` Architecture Strip -->
+  <div class="bg-slate-950/90 border-b border-slate-800/80 px-6 py-2">
+    <div class="max-w-[1640px] mx-auto grid grid-cols-2 sm:grid-cols-5 gap-2 text-[11px]">
+      <div class="flex items-center gap-2 bg-slate-900/90 border border-slate-800 rounded-lg px-2.5 py-1.5">
+        <span class="w-5 h-5 rounded-full bg-sky-500/20 text-sky-300 font-bold flex items-center justify-center">1</span>
+        <div>
+          <div class="font-semibold text-white">gather_evidence (Parallel)</div>
+          <div class="text-[10px] text-slate-400">need · context · capacity</div>
+        </div>
+      </div>
+      <div class="flex items-center gap-2 bg-slate-900/90 border border-slate-800 rounded-lg px-2.5 py-1.5">
+        <span class="w-5 h-5 rounded-full bg-orange-500/20 text-orange-300 font-bold flex items-center justify-center">2</span>
+        <div>
+          <div class="font-semibold text-white">planner (LlmAgent)</div>
+          <div class="text-[10px] text-slate-400">rank_tracts &amp; plan_saturdays</div>
+        </div>
+      </div>
+      <div class="flex items-center gap-2 bg-slate-900/90 border border-slate-800 rounded-lg px-2.5 py-1.5">
+        <span class="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold flex items-center justify-center">3</span>
+        <div>
+          <div class="font-semibold text-white">review_loop (≤3 rounds)</div>
+          <div class="text-[10px] text-slate-400">auditor (BQ MCP) ⇄ reviser</div>
+        </div>
+      </div>
+      <div class="flex items-center gap-2 bg-slate-900/90 border border-slate-800 rounded-lg px-2.5 py-1.5">
+        <span class="w-5 h-5 rounded-full bg-purple-500/20 text-purple-300 font-bold flex items-center justify-center">4</span>
+        <div>
+          <div class="font-semibold text-white">explainer (LlmAgent)</div>
+          <div class="text-[10px] text-slate-400">EN + ES &lt;300 chars · 6th grade</div>
+        </div>
+      </div>
+      <div class="flex items-center gap-2 bg-slate-900/90 border border-slate-800 rounded-lg px-2.5 py-1.5 col-span-2 sm:col-span-1">
+        <span class="w-5 h-5 rounded-full bg-teal-500/20 text-teal-300 font-bold flex items-center justify-center">5</span>
+        <div>
+          <div class="font-semibold text-white">clinic_plan_report</div>
+          <div class="text-[10px] text-slate-400">4-part assembled report</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Main 12-Column Grid -->
   <main class="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-5 p-5 max-w-[1640px] w-full mx-auto">
-    <!-- Left + Center Column: Map + Population Coloring + 4-Saturday Decision + Equity Audit (7 cols) -->
+    <!-- Left + Center Column: Map + Population Coloring + 4-Saturday Decision + Equity Audit + Bilingual Flyer (7 cols) -->
     <section class="lg:col-span-7 flex flex-col gap-5">
       <!-- Map Card -->
       <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-xl animate-enter">
@@ -273,7 +325,7 @@
               </span>
             </h2>
             <p id="categoryDescription" class="text-xs text-slate-400 mt-0.5 transition-all">
-              Shaded population zones &amp; census tracts colored by uninsured safety-net gap, transport barriers, and chronic burden.
+              Percent-ranked need score (0.30 uninsured, 0.25 km to safety-net, 0.20 no-vehicle, 0.15 diabetes+BP, 0.10 no checkup).
             </p>
           </div>
 
@@ -305,28 +357,35 @@
               data-cat="need_score"
               class="cat-btn active px-2.5 py-1.5 rounded-lg text-xs font-medium bg-orange-600 text-white border border-orange-400"
             >
-              🎯 Composite Need
+              🎯 Need Score (Percent-Rank)
             </button>
             <button
               onclick="setPopulationCategory('pct_uninsured')"
               data-cat="pct_uninsured"
               class="cat-btn px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-800/90 text-slate-300 hover:bg-slate-700 border border-slate-700"
             >
-              🏥 Uninsured Adults (18–64)
+              🏥 Uninsured (30% wt)
+            </button>
+            <button
+              onclick="setPopulationCategory('km_to_safety_net')"
+              data-cat="km_to_safety_net"
+              class="cat-btn px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-800/90 text-slate-300 hover:bg-slate-700 border border-slate-700"
+            >
+              📏 Safety-Net Distance (25% wt)
             </button>
             <button
               onclick="setPopulationCategory('pct_no_vehicle')"
               data-cat="pct_no_vehicle"
               class="cat-btn px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-800/90 text-slate-300 hover:bg-slate-700 border border-slate-700"
             >
-              🚗 No-Vehicle Households
+              🚗 No-Vehicle Homes (20% wt)
             </button>
             <button
               onclick="setPopulationCategory('chronic_index')"
               data-cat="chronic_index"
               class="cat-btn px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-800/90 text-slate-300 hover:bg-slate-700 border border-slate-700"
             >
-              ❤️ Chronic Disease (BP/Diabetes)
+              ❤️ Diabetes &amp; High BP (15% wt)
             </button>
             <button
               onclick="setPopulationCategory('senior_mobility_index')"
@@ -342,13 +401,6 @@
             >
               🌎 Limited English (Bilingual)
             </button>
-            <button
-              onclick="setPopulationCategory('extra_km_if_uninsured')"
-              data-cat="extra_km_if_uninsured"
-              class="cat-btn px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-800/90 text-slate-300 hover:bg-slate-700 border border-slate-700"
-            >
-              📏 Safety-Net Distance Gap
-            </button>
           </div>
         </div>
 
@@ -359,7 +411,7 @@
           <!-- Dynamic Population Legend Overlay (Bottom Left of Map) -->
           <div class="absolute bottom-3 left-3 z-[400] bg-slate-950/90 backdrop-blur-md border border-slate-800 rounded-xl px-3.5 py-2.5 shadow-xl max-w-md">
             <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5 flex items-center justify-between gap-4">
-              <span id="legendTitle">Population Layer: Composite Need Score</span>
+              <span id="legendTitle">Population Layer: Need Score</span>
               <span class="text-emerald-400">Zone Size = Total Pop</span>
             </div>
             <div id="legendScale" class="flex flex-wrap items-center gap-3 text-[11px] text-slate-200">
@@ -372,7 +424,11 @@
               </span>
               <span class="flex items-center gap-1">
                 <span class="w-2.5 h-2.5 rounded-full bg-orange-500 inline-block"></span>
-                S1–S4 Saturday Stops
+                S1–S4 Stops (≥5km apart)
+              </span>
+              <span class="flex items-center gap-1">
+                <span class="w-2.5 h-2.5 rounded-full bg-yellow-400 inline-block"></span>
+                RU Runner-Up
               </span>
               <span class="flex items-center gap-1">
                 <span class="w-2.5 h-2.5 rounded-full bg-teal-400 inline-block"></span>
@@ -382,113 +438,163 @@
           </div>
         </div>
 
-        <!-- 4-Grain Spatial Resolution Strip -->
+        <!-- 4-Grain Spatial Resolution Strip (`data.SCALES`) -->
         <div class="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
           <div class="bg-slate-950/80 border border-slate-800 rounded-lg px-2.5 py-1.5">
-            <span class="text-slate-400 block">People &amp; Access</span>
-            <span class="font-semibold text-white">Census Tract Grain</span>
+            <span class="text-slate-400 block">PLACES &amp; SVI (`burden_tracts`)</span>
+            <span class="font-semibold text-white">Census Tract Modeled/Survey</span>
           </div>
           <div class="bg-slate-950/80 border border-slate-800 rounded-lg px-2.5 py-1.5">
-            <span class="text-slate-400 block">Care Supply (`care_sites`)</span>
-            <span class="font-semibold text-emerald-400">Exact Facility Point</span>
+            <span class="text-slate-400 block">Referral Supply (`care_sites`)</span>
+            <span class="font-semibold text-emerald-400">Facility Point + Weekly Hrs</span>
           </div>
           <div class="bg-slate-950/80 border border-slate-800 rounded-lg px-2.5 py-1.5">
             <span class="text-slate-400 block">Air (`exposure_tracts`)</span>
-            <span class="font-semibold text-amber-400">12 km Grid (Regional)</span>
+            <span class="font-semibold text-amber-400">12 km Grid (Context Only)</span>
           </div>
           <div class="bg-slate-950/80 border border-slate-800 rounded-lg px-2.5 py-1.5">
-            <span class="text-slate-400 block">COVID/Flu (`disease_weekly`)</span>
+            <span class="text-slate-400 block">Respiratory (`disease_weekly`)</span>
             <span id="covidWeeksLabel" class="font-semibold text-sky-400">Multi-County HSA</span>
           </div>
         </div>
       </div>
 
-      <!-- Decision Cards: 4-Saturday Mobile Clinic Schedule -->
+      <!-- Decision Cards: 4-Saturday Mobile Clinic Schedule + Runner-Up -->
       <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-xl animate-enter" style="animation-delay: 0.08s">
-        <div class="flex items-center justify-between mb-3">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
           <div>
             <h2 class="text-sm font-semibold text-white uppercase tracking-wider">
-              🚐 4-Saturday Mobile Doctor Van Schedule (`session.state["proposed_plan"]`)
+              🚐 4-Saturday Mobile Doctor Van Schedule (`session.state["plan_stops"]`)
             </h2>
             <p class="text-xs text-slate-400">
-              Click any Saturday card to drive the Doctor Van to that neighborhood and update its location bubble
+              Selected via <code class="text-orange-300">select_stops(min_spacing_km=5.0, min_km_to_safety_net=3.0)</code> with nearest FQHC referral site &amp; hours
             </p>
           </div>
           <span class="text-xs px-2.5 py-1 rounded-md bg-orange-500/10 border border-orange-500/30 text-orange-300 font-medium">
-            4 Stops Selected
+            ≥5.0 km Stop Spacing · ≥3.0 km from FQHC
           </span>
         </div>
 
         <div id="saturdayCards" class="grid grid-cols-1 md:grid-cols-2 gap-3">
           <!-- Populated dynamically -->
         </div>
+
+        <!-- Runner-Up Neighborhood Card (`session.state["plan_runner_up"]`) -->
+        <div id="runnerUpCard" class="mt-3">
+          <!-- Populated dynamically -->
+        </div>
       </div>
 
-      <!-- Post-Hoc Equity Audit Card -->
-      <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-xl animate-enter" style="animation-delay: 0.16s">
+      <!-- 3-Tier Census ACS Equity Audit Card (`agent/clinic_broker/audit.py`) -->
+      <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-xl animate-enter" style="animation-delay: 0.14s">
         <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
-          <h2 class="text-sm font-semibold text-white uppercase tracking-wider">
-            ⚖️ Post-Hoc Equity Audit (`session.state["audit_result"]`)
-          </h2>
-          <span id="auditBadge" class="text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-semibold">
-            AUDITED POST-PLAN
+          <div>
+            <h2 class="text-sm font-semibold text-white uppercase tracking-wider">
+              ⚖️ Independent Auditor: Plan vs. Top-25% Need Pool vs. County (`audit.py`)
+            </h2>
+            <p class="text-[11px] text-slate-400">
+              Queried via BigQuery MCP read-only SQL joining <code class="text-emerald-300">census_bureau_acs.censustract_2020_5yr</code> (never visible to Planner)
+            </p>
+          </div>
+          <span id="auditBadge" class="text-xs px-2.5 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-semibold">
+            VERDICT: PASS
           </span>
         </div>
         <p id="auditSummary" class="text-xs text-slate-300 leading-relaxed mb-3">
-          Loading demographic audit...
+          Loading 3-group demographic equity comparison...
         </p>
-        <div id="auditMetrics" class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr class="border-b border-slate-800 text-[11px] uppercase text-slate-400">
+                <th class="py-2 pr-3">Comparison Group</th>
+                <th class="py-2 px-2">Tracts / Pop</th>
+                <th class="py-2 px-2 text-emerald-300">Black (NH)</th>
+                <th class="py-2 px-2 text-sky-300">Hispanic</th>
+                <th class="py-2 px-2 text-slate-300">White (NH)</th>
+                <th class="py-2 px-2 text-indigo-300">Asian (NH)</th>
+                <th class="py-2 px-2 text-amber-300">No Vehicle</th>
+                <th class="py-2 px-2 text-purple-300">Ltd English</th>
+                <th class="py-2 pl-2 text-pink-300">Age 65+ / Disab</th>
+              </tr>
+            </thead>
+            <tbody id="auditTableBody" class="divide-y divide-slate-800/70">
+              <!-- Populated dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Bilingual Neighborhood Messages (`session.state["flyer"]` from `explainer`) -->
+      <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-xl animate-enter" style="animation-delay: 0.2s">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+          <div>
+            <h2 class="text-sm font-semibold text-white uppercase tracking-wider">
+              💬 Bilingual Neighborhood SMS / WhatsApp Flyers (`session.state["flyer"]`)
+            </h2>
+            <p class="text-xs text-slate-400">
+              6th-grade reading level, English &amp; Spanish (&lt;300 chars each), zero statistics, plus CHW <em>"Why not us?"</em> runner-up script
+            </p>
+          </div>
+          <span class="text-xs px-2.5 py-0.5 rounded-full bg-purple-500/20 border border-purple-500/40 text-purple-300 font-semibold">
+            EN + ES Ready
+          </span>
+        </div>
+        <div id="flyerCards" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <!-- Populated dynamically -->
+        </div>
+        <div id="runnerUpScriptBox" class="mt-3">
           <!-- Populated dynamically -->
         </div>
       </div>
     </section>
 
-    <!-- Right Column: User Prompt & ADK Agent Chat (5 cols) -->
-    <section class="lg:col-span-5 flex flex-col bg-slate-900/90 border border-slate-800 rounded-2xl shadow-xl overflow-hidden h-[880px] animate-enter" style="animation-delay: 0.12s">
+    <!-- Right Column: User Prompt & ADK `clinic_plan` Agent Chat (5 cols) -->
+    <section class="lg:col-span-5 flex flex-col bg-slate-900/90 border border-slate-800 rounded-2xl shadow-xl overflow-hidden h-[1120px] sticky top-20 animate-enter" style="animation-delay: 0.12s">
       <!-- Chat Header -->
       <div class="px-4 py-3 border-b border-slate-800 bg-slate-950/60 flex items-center justify-between">
         <div>
           <h2 class="text-sm font-semibold text-white flex items-center gap-2">
             <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-            ADK Agent Coordinator (`root_agent`)
+            ADK Pipeline (`clinic_plan` SequentialAgent)
           </h2>
           <p class="text-xs text-slate-400">
-            Ask where to park the Doctor Van, audit equity, or draft bilingual flyers
+            Runs `gather_evidence` → `planner` → `review_loop` → `explainer` → `report`
           </p>
         </div>
         <button
-          onclick="sendQuickPrompt('hello')"
-          class="text-xs px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition"
+          onclick="sendQuickPrompt('Plan next month\'s four mobile clinic Saturdays for Fulton County, GA.')"
+          class="text-xs px-2.5 py-1 rounded-lg bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-200 border border-emerald-500/40 transition font-medium"
         >
-          👋 Say "hello"
+          ▶ Run Full Plan
         </button>
       </div>
 
       <!-- Quick Prompt Chips -->
       <div class="px-4 py-2.5 bg-slate-950/40 border-b border-slate-800/80 flex flex-wrap gap-1.5">
         <button
-          onclick="sendQuickPrompt('Hello! Where should we park the mobile clinic van across the 4 Saturdays next month, and why?')"
+          onclick="sendQuickPrompt('Plan the 4 Saturdays next month with at least 5 km spacing and show where each stop refers uninsured patients for follow-up.')"
           class="text-[11px] px-2.5 py-1 rounded-full bg-orange-500/15 hover:bg-orange-500/25 text-orange-300 border border-orange-500/30 transition"
         >
-          🚐 Plan 4 Saturdays
+          🚐 Plan 4 Saturdays + Referrals
         </button>
         <button
-          onclick="sendQuickPrompt('Run the post-hoc demographic equity audit on our 4-Saturday clinic plan without using race as a ranking input.')"
+          onclick="sendQuickPrompt('Prioritize no-vehicle households higher (w_no_vehicle=0.40) and re-plan the 4 Saturdays.')"
+          class="text-[11px] px-2.5 py-1 rounded-full bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 transition"
+        >
+          🚗 Re-Weight for Transit Barriers
+        </button>
+        <button
+          onclick="sendQuickPrompt('Audit the 4 chosen stops against the top-25% need pool and county demographics using Census ACS, and verify no scale errors exist.')"
           class="text-[11px] px-2.5 py-1 rounded-full bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 transition"
         >
-          ⚖️ Run Equity Audit
+          ⚖️ Audit Plan vs. Need Pool
         </button>
         <button
-          onclick="sendQuickPrompt('Why shouldn\'t we rank census tracts by PM2.5 air pollution or weekly COVID visits at the neighborhood level?')"
-          class="text-[11px] px-2.5 py-1 rounded-full bg-sky-500/15 hover:bg-sky-500/25 text-sky-300 border border-sky-500/30 transition"
-        >
-          🔬 12km &amp; HSA Grain Trap
-        </button>
-        <button
-          onclick="sendQuickPrompt('Write a warm 6th-grade reading level flyer in English and Spanish for Saturday 1 in Tract 13121007808 explaining why the mobile clinic van is visiting.')"
+          onclick="sendQuickPrompt('Write the English and Spanish WhatsApp messages (<300 chars) for the 4 stops and the CHW answer for the runner-up neighborhood.')"
           class="text-[11px] px-2.5 py-1 rounded-full bg-purple-500/15 hover:bg-purple-500/25 text-purple-300 border border-purple-500/30 transition"
         >
-          📄 Bilingual Flyer (EN/ES)
+          💬 Bilingual SMS + Runner-Up
         </button>
       </div>
 
@@ -497,12 +603,14 @@
         <!-- Initial Greeting Bubble -->
         <div class="bg-slate-800/80 border border-slate-700/80 rounded-2xl rounded-tl-sm p-3.5 text-slate-200 leading-relaxed animate-enter">
           <div class="text-[11px] font-semibold text-orange-400 mb-1">
-            public_health_equity_broker · Root Coordinator
+            clinic_plan · 5-Stage Multi-Agent Pipeline
           </div>
-          Welcome! Type <strong>"hello"</strong> below or click any quick-prompt chip above to start planning your county's 4-Saturday Mobile Clinic schedule.
-          <div class="mt-2 text-xs text-slate-400">
-            💡 <em>Tip:</em> Click the <strong>Population Category</strong> buttons above the map to color neighborhoods by Uninsured Adults, No-Vehicle Homes, Chronic Disease, Seniors/Mobility, or Bilingual need—or click any Saturday card to drive the <strong>Doctor Van</strong> there!
-          </div>
+          Welcome! This UI is connected directly to <code class="text-emerald-300">agent/clinic_broker</code>:
+          <ul class="list-disc list-inside text-xs text-slate-300 mt-1.5 space-y-1">
+            <li><strong>Planner (<code class="text-orange-300">tools.py</code>):</strong> Percent-ranks tracts without race, enforces 5.0 km stop spacing &amp; 3.0 km safety-net buffer, and attaches the nearest FQHC referral clinic.</li>
+            <li><strong>Independent Auditor (<code class="text-emerald-300">audit.py</code>):</strong> Uses BigQuery MCP read-only SQL on Census ACS to compare <code>plan</code> vs. <code>need_pool</code> (top 25%) vs. <code>county</code>.</li>
+            <li><strong>Explainer (<code class="text-purple-300">prompts.py</code>):</strong> Drafts &lt;300-char English &amp; Spanish messages plus the runner-up <em>"Why not us?"</em> response.</li>
+          </ul>
         </div>
       </div>
 
@@ -511,7 +619,7 @@
         <input
           id="chatInput"
           type="text"
-          placeholder="Say 'hello' or ask about tracts, population categories, or flyers..."
+          placeholder="Ask clinic_plan to plan Saturdays, adjust weights, or exclude a tract..."
           class="flex-1 bg-slate-900 border border-slate-700 focus:border-orange-500 focus:outline-none rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-500 transition-all"
         />
         <button
@@ -530,6 +638,7 @@
     let tractMarkers = {};
     let tractPopulationZones = {};
     let stopMarkers = {};
+    let runnerUpMarker = null;
     let doctorVanMarker = null;
     let routePolyline = null;
     let globalData = null;
@@ -538,25 +647,25 @@
     let vanTourInterval = null;
     let vanAnimFrame = null;
 
-    // Population Category Definitions & Color Scales
+    // Population Category Definitions & Color Scales matching `agent/clinic_broker/data.py`
     const POPULATION_CATEGORIES = {
       need_score: {
-        label: "Composite Need Score",
+        label: "Need Score (County Percent-Rank)",
         unit: " pts",
         description:
-          "Overall mobile clinic priority combining uninsured rate, safety-net distance penalty, no-vehicle households, and chronic disease burden.",
+          "Percent-rank composite from clinic_broker/data.py: 0.30 uninsured + 0.25 km_to_safety_net + 0.20 no_vehicle + 0.15 diabetes/BP + 0.10 missed checkup.",
         bins: [
-          { min: 55, color: "#f43f5e", label: "Critical Need (≥55)" },
-          { min: 45, color: "#fb923c", label: "High Need (45–54)" },
-          { min: 30, color: "#facc15", label: "Moderate (30–44)" },
-          { min: -Infinity, color: "#38bdf8", label: "Baseline (<30)" },
+          { min: 75, color: "#f43f5e", label: "Top Priority (≥75)" },
+          { min: 55, color: "#fb923c", label: "High Need (55–74)" },
+          { min: 35, color: "#facc15", label: "Moderate (35–54)" },
+          { min: -Infinity, color: "#38bdf8", label: "Lower Need (<35)" },
         ],
       },
       pct_uninsured: {
-        label: "Uninsured Working-Age Adults (18–64)",
+        label: "Uninsured Working-Age Adults (Weight: 0.30)",
         unit: "%",
         description:
-          "Percentage of adults aged 18–64 without health insurance (CDC PLACES). High-uninsured tracts rely heavily on sliding-scale FQHCs or mobile vans.",
+          "Percentage of adults aged 18–64 without health insurance (CDC PLACES modeled tract estimate).",
         bins: [
           { min: 20, color: "#e879f9", label: "Very High (≥20%)" },
           { min: 15, color: "#a855f7", label: "Elevated (15–19.9%)" },
@@ -564,11 +673,23 @@
           { min: -Infinity, color: "#38bdf8", label: "Lower (<9%)" },
         ],
       },
+      km_to_safety_net: {
+        label: "Distance to Safety-Net FQHC (Weight: 0.25)",
+        unit: " km",
+        description:
+          "Straight-line km from tract center to nearest federal safety-net clinic (FQHC / Health Center site).",
+        bins: [
+          { min: 15, color: "#f43f5e", label: "Far from FQHC (≥15 km)" },
+          { min: 10, color: "#fb923c", label: "High Distance (10–14.9 km)" },
+          { min: 5, color: "#facc15", label: "Moderate (5–9.9 km)" },
+          { min: -Infinity, color: "#22c55e", label: "Near FQHC (<5 km)" },
+        ],
+      },
       pct_no_vehicle: {
-        label: "No-Vehicle Households",
+        label: "No-Vehicle Households (Weight: 0.20)",
         unit: "%",
         description:
-          "Share of households with zero vehicles (CDC SVI). A 10 km trip is 12 minutes by car, but 2+ bus transfers without one.",
+          "Share of households with zero vehicles (CDC SVI / ACS survey estimate).",
         bins: [
           { min: 20, color: "#ef4444", label: "Severe Transit Need (≥20%)" },
           { min: 14, color: "#f97316", label: "High No-Vehicle (14–19.9%)" },
@@ -577,10 +698,10 @@
         ],
       },
       chronic_index: {
-        label: "Chronic Disease Burden (BP, Diabetes, Asthma)",
+        label: "Chronic Burden: Diabetes & High BP (Weight: 0.15)",
         unit: "% avg",
         description:
-          "Combined prevalence of High Blood Pressure, Diabetes, and Asthma (modeled tract estimate from CDC PLACES).",
+          "Screenable chronic burden (Diabetes & High Blood Pressure modeled prevalence from CDC PLACES).",
         bins: [
           { min: 22, color: "#e11d48", label: "Severe Burden (≥22%)" },
           { min: 19, color: "#fb7185", label: "High Burden (19–21.9%)" },
@@ -589,10 +710,10 @@
         ],
       },
       senior_mobility_index: {
-        label: "Seniors (65+) & Mobility Difficulty",
+        label: "Seniors (65+) & Mobility Difficulty (Audited)",
         unit: "% avg",
         description:
-          "Combined share of older adults aged 65+ and adults reporting serious difficulty walking or climbing stairs.",
+          "Combined share of older adults aged 65+ and adults with mobility/disability barriers.",
         bins: [
           { min: 17, color: "#f472b6", label: "High Senior/Mobility (≥17%)" },
           { min: 14.5, color: "#c084fc", label: "Elevated (14.5–16.9%)" },
@@ -604,24 +725,12 @@
         label: "Limited English Proficiency (Bilingual Need)",
         unit: "%",
         description:
-          "Percentage of residents speaking English 'less than very well' (ACS SVI). Identifies where Spanish/multilingual flyers & CHWs are essential.",
+          "Percentage of residents speaking English 'less than very well' (ACS SVI).",
         bins: [
           { min: 7, color: "#10b981", label: "Bilingual Priority (≥7%)" },
           { min: 4.5, color: "#14b8a6", label: "Elevated LEP (4.5–6.9%)" },
           { min: 3, color: "#06b6d4", label: "Moderate (3–4.4%)" },
           { min: -Infinity, color: "#64748b", label: "Lower (<3%)" },
-        ],
-      },
-      extra_km_if_uninsured: {
-        label: "Uninsured Safety-Net Distance Penalty",
-        unit: " km",
-        description:
-          "Extra kilometers an uninsured resident must travel past nearby hospitals/private clinics to reach an FQHC or sliding-scale safety-net site.",
-        bins: [
-          { min: 15, color: "#f43f5e", label: "Severe Penalty (≥15 km)" },
-          { min: 10, color: "#fb923c", label: "High Gap (10–14.9 km)" },
-          { min: 5, color: "#facc15", label: "Moderate Gap (5–9.9 km)" },
-          { min: -Infinity, color: "#22c55e", label: "Near Safety-Net (<5 km)" },
         ],
       },
     };
@@ -686,6 +795,8 @@
 
     function formatMarkdown(text) {
       let html = escapeHtml(text);
+      html = html.replace(/^# (.*$)/gm, "<h3 class='text-base font-bold text-white mt-2 mb-1'>$1</h3>");
+      html = html.replace(/^## (.*$)/gm, "<h4 class='text-xs font-bold uppercase tracking-wider text-orange-400 mt-3 mb-1'>$1</h4>");
       html = html.replace(/\*\*(.*?)\*\*/g, "<strong class='text-white font-semibold'>$1</strong>");
       html = html.replace(/`([^`]+)`/g, "<code class='px-1 py-0.5 rounded bg-slate-950 text-orange-300 font-mono text-xs'>$1</code>");
       html = html.replace(/\n/g, "<br/>");
@@ -722,20 +833,23 @@
     function buildDoctorVanHtml(stopData, stopLabel) {
       const locTitle = stopData.location_label || `Tract ${stopData.geo_id}`;
       const slotText = stopLabel || stopData.saturday_slot || "Mobile Clinic Stop";
-      const msgText = `Free BP, Glucose & Asthma Checks · +${stopData.extra_km_if_uninsured} km gap · ${stopData.pct_uninsured}% uninsured`;
+      const ref = stopData.refer_to || {};
+      const refLine = ref.name
+        ? `↪ Refer: ${ref.name} (${ref.hours_per_week || 40}h/wk)`
+        : `${stopData.km_to_safety_net} km to FQHC · ${stopData.pct_uninsured}% uninsured`;
 
       return `
         <div class="doctor-van-wrapper">
           <div id="vanSpeechBubble" class="van-speech-bubble bubble-pop">
             <div class="flex items-center justify-between gap-1 text-[10px] font-bold uppercase tracking-wider text-emerald-300 mb-0.5">
-              <span>🩺 DOCTOR VAN · ${escapeHtml(slotText)}</span>
-              <span class="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-200">LIVE</span>
+              <span>🩺 ${escapeHtml(slotText)}</span>
+              <span class="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-200">RANK #${stopData.need_rank || 1}</span>
             </div>
             <div class="text-xs font-bold text-white truncate">
               📍 ${escapeHtml(locTitle)}
             </div>
-            <div class="text-[11px] text-slate-300 leading-snug mt-0.5">
-              ${escapeHtml(msgText)}
+            <div class="text-[11px] text-slate-300 leading-snug mt-0.5 truncate">
+              ${escapeHtml(refLine)}
             </div>
           </div>
           <div class="doctor-van-pulse"></div>
@@ -781,7 +895,6 @@
       function step(now) {
         const elapsed = now - startTime;
         const t = Math.min(1, elapsed / durationMs);
-        // Smooth easeInOutCubic
         const ease = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
         const curLat = startLat + (targetLat - startLat) * ease;
         const curLon = startLon + (targetLon - startLon) * ease;
@@ -790,7 +903,6 @@
         if (t < 1) {
           vanAnimFrame = requestAnimationFrame(step);
         } else {
-          // Update speech bubble content at destination with pop animation
           const newIcon = L.divIcon({
             className: "",
             html: buildDoctorVanHtml(targetTract, stopLabel),
@@ -801,7 +913,6 @@
         }
       }
 
-      // Immediately update bubble text so user sees destination while driving
       const drivingIcon = L.divIcon({
         className: "",
         html: buildDoctorVanHtml(targetTract, stopLabel),
@@ -815,7 +926,6 @@
     function setPopulationCategory(categoryKey) {
       currentCategory = categoryKey;
 
-      // Update button active states
       document.querySelectorAll("#categoryButtons .cat-btn").forEach((btn) => {
         if (btn.getAttribute("data-cat") === categoryKey) {
           btn.className =
@@ -830,7 +940,6 @@
 
       if (!globalData) return;
 
-      // Smoothly transition colors of all neighborhood population zones and tract markers
       globalData.tracts.forEach((t) => {
         const gid = String(t.geo_id);
         const color = getCategoryColor(t, categoryKey);
@@ -856,17 +965,15 @@
       globalData = data;
 
       document.getElementById("countyBadge").textContent =
-        `${data.county_name} · ${data.total_tracts} Tracts · ${data.total_sites} Clinics`;
+        `${data.county_name} · ${data.total_tracts} Tracts · ${data.total_sites} Care Sites`;
       document.getElementById("sourceBadge").textContent = data.source_mode;
       document.getElementById("covidWeeksLabel").textContent =
         `${data.usable_covid_weeks} usable weeks · HPSA: ${data.shortage_areas_count}`;
 
       const bounds = [];
-
-      // 1. Plot shaded population neighborhood zones + tract center nodes for ALL tracts
-      // If there are hundreds of tracts (full BigQuery), scale radius cleanly
       const baseZoneRadiusMeters = data.tracts.length > 80 ? 1150 : 2400;
 
+      // 1. Plot shaded population neighborhood zones + tract center nodes
       data.tracts.forEach((t) => {
         if (!t.latitude || !t.longitude) return;
         const gid = String(t.geo_id);
@@ -875,7 +982,6 @@
         const color = getCategoryColor(t, currentCategory);
         const popFactor = Math.max(0.65, Math.min(1.45, (Number(t.total_pop) || 4500) / 4800));
 
-        // Shaded Neighborhood Population Zone (choropleth buffer)
         const zoneCircle = L.circle([t.latitude, t.longitude], {
           radius: baseZoneRadiusMeters * popFactor,
           fillColor: color,
@@ -886,7 +992,6 @@
         }).addTo(map);
         tractPopulationZones[gid] = zoneCircle;
 
-        // Tract Centroid Node
         const nodeMarker = L.circleMarker([t.latitude, t.longitude], {
           radius: 6,
           fillColor: color,
@@ -897,18 +1002,18 @@
         }).addTo(map);
 
         const popupHtml = `
-          <div class="text-xs space-y-1.5 min-w-[220px]">
+          <div class="text-xs space-y-1.5 min-w-[230px]">
             <div class="font-bold text-orange-400 text-sm">${escapeHtml(t.location_label || "Census Tract")}</div>
-            <div class="text-[11px] text-slate-400 font-mono">Tract ID: ${t.geo_id} · Pop: ${(t.total_pop || 0).toLocaleString()}</div>
+            <div class="text-[11px] text-slate-400 font-mono">Tract ${t.geo_id} · Rank #${t.need_rank} of ${t.tracts_ranked} · Pop ${(t.total_pop || 0).toLocaleString()}</div>
             <div class="grid grid-cols-2 gap-x-3 gap-y-1 pt-1 border-t border-slate-800">
               <div>Need Score: <strong>${t.need_score}</strong></div>
               <div>Uninsured: <strong>${t.pct_uninsured}%</strong></div>
-              <div>Safety-Net Gap: <strong>+${t.extra_km_if_uninsured} km</strong></div>
+              <div>Safety-Net: <strong>${t.km_to_safety_net} km</strong></div>
               <div>No Vehicle: <strong>${t.pct_no_vehicle}%</strong></div>
               <div>High BP / Diab: <strong>${t.pct_high_bp}% / ${t.pct_diabetes}%</strong></div>
-              <div>Seniors 65+: <strong>${t.pct_age_65_plus ?? 14}%</strong></div>
+              <div>Checkup Rate: <strong>${t.pct_checkup}%</strong></div>
               <div>Limited English: <strong>${t.pct_limited_english}%</strong></div>
-              <div>Nearest FQHC: <strong>${t.km_to_safety_net} km</strong></div>
+              <div>Extra Unins. km: <strong>+${t.extra_km_if_uninsured} km</strong></div>
             </div>
             <button
               onclick="driveVanToTract('${t.geo_id}')"
@@ -941,9 +1046,9 @@
         marker.bindPopup(`
           <div class="text-xs space-y-1">
             <div class="font-bold ${isSafety ? "text-teal-300" : "text-sky-300"}">${escapeHtml(s.name)}</div>
-            <div>Type: <strong>${escapeHtml(s.site_kind)}</strong> ${isSafety ? "(Sliding-Scale Safety-Net ✅)" : "(General Hospital/Clinic)"}</div>
-            <div>Operating Hours: ${s.hours_per_week} hrs/wk</div>
-            <div class="text-[10px] text-slate-400">Resolution: Exact Facility Point</div>
+            <div>Type: <strong>${escapeHtml(s.site_kind)}</strong> ${isSafety ? "(Sliding-Scale Safety-Net ✅)" : "(Hospital — Not Sliding-Scale)"}</div>
+            <div>Operating Hours: <strong>${s.hours_per_week} hrs/wk</strong></div>
+            <div class="text-[10px] text-slate-400">Scale: Facility Point (HRSA / CMS)</div>
           </div>
         `);
       });
@@ -959,14 +1064,14 @@
         }).addTo(map);
       }
 
-      // 4. Plot S1–S4 Saturday Stop Pins with Neighborhood Mini-Pills
+      // 4. Plot S1–S4 Saturday Stop Pins
       data.recommended_stops.forEach((s, idx) => {
         const shortLoc = (s.location_label || `Tract ${s.geo_id}`).split("·")[0].trim();
         const pinIcon = L.divIcon({
           className: "",
           html: `
-            <div class=" relative flex items-center justify-center">
-              <div class="stop-mini-label">S${idx + 1} · ${escapeHtml(shortLoc)}</div>
+            <div class="relative flex items-center justify-center">
+              <div class="stop-mini-label">S${idx + 1} (${s.saturday || ""}) · ${escapeHtml(shortLoc)}</div>
               <div class="stop-pin">S${idx + 1}</div>
             </div>
           `,
@@ -984,10 +1089,32 @@
         stopMarkers[String(s.geo_id)] = stopMarker;
       });
 
-      // 5. Place the Animated Doctor Van with Floating Speech Bubble at Saturday 1 initially
+      // 5. Plot Runner-Up Pin (`plan_runner_up`)
+      if (data.runner_up && data.runner_up.latitude && data.runner_up.longitude) {
+        const ru = data.runner_up;
+        const ruIcon = L.divIcon({
+          className: "",
+          html: `<div class="runner-up-pin" title="Runner-Up Tract ${ru.geo_id}">RU</div>`,
+          iconSize: [26, 26],
+          iconAnchor: [13, 13],
+        });
+        runnerUpMarker = L.marker([ru.latitude, ru.longitude], {
+          icon: ruIcon,
+          zIndexOffset: 900,
+        }).addTo(map);
+        runnerUpMarker.bindPopup(`
+          <div class="text-xs space-y-1 max-w-[230px]">
+            <div class="font-bold text-yellow-400">Runner-Up: ${escapeHtml(ru.location_label)}</div>
+            <div class="font-mono text-[11px] text-slate-400">Tract ${ru.geo_id} · Rank #${ru.need_rank}</div>
+            <div class="text-slate-200"><strong>Why not chosen:</strong> ${escapeHtml(ru.why_not)}</div>
+          </div>
+        `);
+      }
+
+      // 6. Place the Animated Doctor Van with Floating Speech Bubble at Saturday 1
       if (data.recommended_stops.length > 0) {
         const firstStop = data.recommended_stops[0];
-        animateDoctorVanTo(firstStop, "Saturday 1", 600);
+        animateDoctorVanTo(firstStop, firstStop.saturday_slot || "Saturday 1", 600);
       }
 
       if (bounds.length > 0) {
@@ -995,14 +1122,16 @@
       }
 
       updateLegend(currentCategory);
-      renderSaturdayCards(data.recommended_stops);
+      renderSaturdayCards(data.recommended_stops, data.runner_up);
       renderEquityAudit(data.equity_audit);
+      renderFlyers(data.flyer);
     }
 
-    function renderSaturdayCards(stops) {
+    function renderSaturdayCards(stops, runnerUp) {
       const container = document.getElementById("saturdayCards");
       container.innerHTML = "";
       stops.forEach((s, idx) => {
+        const ref = s.refer_to || {};
         const card = document.createElement("div");
         card.id = `sat-card-${idx}`;
         card.className = `ui-card cursor-pointer bg-slate-950/85 border border-slate-800 rounded-xl p-3.5 ${
@@ -1014,27 +1143,57 @@
             <span class="text-xs font-bold text-orange-400 uppercase tracking-wide flex items-center gap-1.5">
               <span>🚐 ${escapeHtml(s.saturday_slot)}</span>
             </span>
-            <span class="text-xs px-2 py-0.5 rounded bg-orange-500/20 text-orange-300 font-semibold">
-              Need Score ${s.need_score}
+            <span class="text-[11px] px-2 py-0.5 rounded bg-orange-500/20 text-orange-300 font-semibold">
+              Rank #${s.need_rank || idx + 1} · Score ${s.need_score}
             </span>
           </div>
           <div class="text-sm font-bold text-white mb-0.5">
             📍 ${escapeHtml(s.location_label || `Census Tract ${s.geo_id}`)}
           </div>
           <div class="text-[11px] font-mono text-slate-400 mb-1.5">
-            Tract ${s.geo_id} · Population ${(s.total_pop || 0).toLocaleString()}
+            Tract ${s.geo_id} · Pop ${(s.total_pop || s.population || 0).toLocaleString()}
           </div>
-          <p class="text-xs text-slate-300 leading-relaxed mb-2.5">
+          <p class="text-xs text-slate-300 leading-relaxed mb-2">
             ${escapeHtml(s.rationale)}
           </p>
+          <div class="bg-emerald-950/40 border border-emerald-800/50 rounded-lg px-2.5 py-1.5 mb-2 text-[11px] text-emerald-200 flex items-center justify-between">
+            <span>🏥 <strong>Follow-Up Referral:</strong> ${escapeHtml(ref.name || "Nearest Safety-Net FQHC")}</span>
+            <span class="font-mono text-emerald-300">${ref.km ?? s.km_to_safety_net} km · ${ref.hours_per_week ?? 40}h/wk</span>
+          </div>
           <div class="grid grid-cols-3 gap-1.5 text-[11px] text-slate-300 border-t border-slate-800/80 pt-2">
             <div>Uninsured: <strong class="text-white">${s.pct_uninsured}%</strong></div>
-            <div>Gap: <strong class="text-rose-400">+${s.extra_km_if_uninsured} km</strong></div>
+            <div>FQHC Dist: <strong class="text-rose-400">${s.km_to_safety_net} km</strong></div>
             <div>No Car: <strong class="text-amber-300">${s.pct_no_vehicle}%</strong></div>
           </div>
         `;
         container.appendChild(card);
       });
+
+      const ruBox = document.getElementById("runnerUpCard");
+      if (runnerUp) {
+        ruBox.innerHTML = `
+          <div
+            onclick="driveVanToTract('${runnerUp.geo_id}')"
+            class="cursor-pointer bg-yellow-950/25 hover:bg-yellow-950/40 border border-yellow-600/40 rounded-xl p-3 flex flex-wrap items-center justify-between gap-2 transition"
+          >
+            <div class="text-xs">
+              <span class="px-2 py-0.5 rounded bg-yellow-500/20 text-yellow-300 font-bold uppercase text-[10px] mr-1.5">
+                Runner-Up (plan_runner_up)
+              </span>
+              <strong class="text-white">${escapeHtml(runnerUp.location_label || `Tract ${runnerUp.geo_id}`)}</strong>
+              <span class="text-slate-400 font-mono text-[11px] ml-1">(Tract ${runnerUp.geo_id} · Rank #${runnerUp.need_rank} · Score ${runnerUp.need_score})</span>
+              <div class="text-slate-300 mt-1">
+                <strong>Why not chosen:</strong> ${escapeHtml(runnerUp.why_not)}
+              </div>
+            </div>
+            <span class="text-[11px] px-2.5 py-1 rounded-lg bg-yellow-500/20 text-yellow-200 border border-yellow-500/30 font-medium">
+              📍 Inspect on Map
+            </span>
+          </div>
+        `;
+      } else {
+        ruBox.innerHTML = "";
+      }
     }
 
     function focusSaturdayStop(idx) {
@@ -1042,7 +1201,6 @@
       activeStopIndex = idx;
       const stop = globalData.recommended_stops[idx];
 
-      // Highlight active Saturday card
       globalData.recommended_stops.forEach((_, i) => {
         const el = document.getElementById(`sat-card-${i}`);
         if (el) {
@@ -1050,12 +1208,11 @@
         }
       });
 
-      // Pan map smoothly & drive the Doctor Van with its speech bubble to this stop
       map.flyTo([stop.latitude, stop.longitude], 12, {
         animate: true,
         duration: 0.9,
       });
-      animateDoctorVanTo(stop, `Saturday ${idx + 1}`, 950);
+      animateDoctorVanTo(stop, stop.saturday_slot || `Saturday ${idx + 1}`, 950);
     }
 
     function driveVanToTract(geoId) {
@@ -1071,7 +1228,7 @@
           animate: true,
           duration: 0.9,
         });
-        animateDoctorVanTo(tract, "Custom Stop", 950);
+        animateDoctorVanTo(tract, `Inspect · Tract ${tract.geo_id}`, 950);
       }
     }
 
@@ -1098,45 +1255,72 @@
     }
 
     function renderEquityAudit(audit) {
-      document.getElementById("auditBadge").textContent = audit.status;
-      document.getElementById("auditSummary").textContent = audit.audit_summary;
-      const metrics = document.getElementById("auditMetrics");
+      document.getElementById("auditBadge").textContent = audit.status || `VERDICT: ${audit.verdict || "PASS"}`;
+      document.getElementById("auditSummary").textContent = audit.audit_summary || "";
+      const tbody = document.getElementById("auditTableBody");
+      const groups = audit.groups || [];
 
-      const svaPlanPct = Math.min(100, Math.round(audit.plan_avg_svi_socioeconomic * 100));
-      const uninsPlanPct = Math.min(100, Math.round((audit.plan_avg_uninsured / 30) * 100));
-      const gapPlanPct = Math.min(100, Math.round((audit.plan_avg_extra_km / 22) * 100));
-      const lepPlanPct = Math.min(100, Math.round((audit.plan_avg_limited_english / 15) * 100));
+      const labels = {
+        plan: "🚐 Plan (4 Saturday Stops)",
+        need_pool: "🎯 Need Pool (Top 25% Tracts)",
+        county: "🏛️ County Overall",
+      };
 
-      metrics.innerHTML = `
-        <div class="bg-slate-950/80 border border-slate-800 rounded-xl p-2.5">
-          <div class="text-slate-400 text-[11px]">SVI Socioeconomic</div>
-          <div class="text-sm font-bold text-emerald-400 mt-0.5">${audit.plan_avg_svi_socioeconomic} <span class="text-slate-500 font-normal text-xs">vs ${audit.county_avg_svi_socioeconomic}</span></div>
-          <div class="w-full h-1.5 bg-slate-800 rounded-full mt-1.5 overflow-hidden">
-            <div class="audit-bar h-full bg-emerald-400 rounded-full" style="width:${svaPlanPct}%"></div>
+      tbody.innerHTML = groups
+        .map(
+          (g) => `
+          <tr class="${g.grp === "plan" ? "bg-emerald-950/30 font-semibold text-white" : "text-slate-300"}">
+            <td class="py-2 pr-3">${escapeHtml(labels[g.grp] || g.grp)}</td>
+            <td class="py-2 px-2 font-mono text-[11px]">${g.tracts} tracts · ${(g.population || 0).toLocaleString()}</td>
+            <td class="py-2 px-2 text-emerald-300">${g.pct_black_non_hispanic}%</td>
+            <td class="py-2 px-2 text-sky-300">${g.pct_hispanic_any_race}%</td>
+            <td class="py-2 px-2 text-slate-300">${g.pct_white_non_hispanic}%</td>
+            <td class="py-2 px-2 text-indigo-300">${g.pct_asian_non_hispanic}%</td>
+            <td class="py-2 px-2 text-amber-300">${g.pct_no_vehicle}%</td>
+            <td class="py-2 px-2 text-purple-300">${g.pct_limited_english}%</td>
+            <td class="py-2 pl-2 text-pink-300">${g.pct_age_65_plus}% / ${g.pct_any_disability}%</td>
+          </tr>
+        `
+        )
+        .join("");
+    }
+
+    function renderFlyers(flyer) {
+      if (!flyer) return;
+      const container = document.getElementById("flyerCards");
+      const stops = flyer.stops || [];
+      container.innerHTML = stops
+        .map(
+          (m, idx) => `
+          <div class="bg-slate-950/85 border border-slate-800 rounded-xl p-3 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-purple-300">S${idx + 1} · ${escapeHtml(m.saturday)} — ${escapeHtml(m.location_label)}</span>
+              <span class="text-[10px] font-mono text-slate-400">Tract ${m.geo_id}</span>
+            </div>
+            <div class="bg-slate-900/90 border border-slate-800 rounded-lg p-2 text-xs text-slate-200">
+              <span class="text-[10px] font-bold uppercase text-emerald-400 block mb-0.5">English (${m.en.length} chars)</span>
+              ${escapeHtml(m.en)}
+            </div>
+            <div class="bg-slate-900/90 border border-slate-800 rounded-lg p-2 text-xs text-slate-200">
+              <span class="text-[10px] font-bold uppercase text-sky-400 block mb-0.5">Español (${m.es.length} chars)</span>
+              ${escapeHtml(m.es)}
+            </div>
           </div>
-        </div>
-        <div class="bg-slate-950/80 border border-slate-800 rounded-xl p-2.5">
-          <div class="text-slate-400 text-[11px]">Uninsured (18–64)</div>
-          <div class="text-sm font-bold text-orange-400 mt-0.5">${audit.plan_avg_uninsured}% <span class="text-slate-500 font-normal text-xs">vs ${audit.county_avg_uninsured}%</span></div>
-          <div class="w-full h-1.5 bg-slate-800 rounded-full mt-1.5 overflow-hidden">
-            <div class="audit-bar h-full bg-orange-400 rounded-full" style="width:${uninsPlanPct}%"></div>
+        `
+        )
+        .join("");
+
+      const ruScriptEl = document.getElementById("runnerUpScriptBox");
+      if (flyer.runner_up_script) {
+        ruScriptEl.innerHTML = `
+          <div class="bg-purple-950/25 border border-purple-700/40 rounded-xl p-3 text-xs text-purple-100">
+            <strong class="text-purple-300 uppercase tracking-wider text-[10px] block mb-1">
+              🗣️ Community Health Worker Answer — "Why didn't our neighborhood get a Saturday?"
+            </strong>
+            ${escapeHtml(flyer.runner_up_script)}
           </div>
-        </div>
-        <div class="bg-slate-950/80 border border-slate-800 rounded-xl p-2.5">
-          <div class="text-slate-400 text-[11px]">Safety-Net Gap</div>
-          <div class="text-sm font-bold text-rose-400 mt-0.5">+${audit.plan_avg_extra_km} km <span class="text-slate-500 font-normal text-xs">vs +${audit.county_avg_extra_km} km</span></div>
-          <div class="w-full h-1.5 bg-slate-800 rounded-full mt-1.5 overflow-hidden">
-            <div class="audit-bar h-full bg-rose-400 rounded-full" style="width:${gapPlanPct}%"></div>
-          </div>
-        </div>
-        <div class="bg-slate-950/80 border border-slate-800 rounded-xl p-2.5">
-          <div class="text-slate-400 text-[11px]">Limited English</div>
-          <div class="text-sm font-bold text-purple-400 mt-0.5">${audit.plan_avg_limited_english}% <span class="text-slate-500 font-normal text-xs">vs ${audit.county_avg_limited_english}%</span></div>
-          <div class="w-full h-1.5 bg-slate-800 rounded-full mt-1.5 overflow-hidden">
-            <div class="audit-bar h-full bg-purple-400 rounded-full" style="width:${lepPlanPct}%"></div>
-          </div>
-        </div>
-      `;
+        `;
+      }
     }
 
     function appendMessage(role, text) {
@@ -1149,7 +1333,7 @@
       } else {
         wrap.className =
           "mr-4 bg-slate-800/90 border border-slate-700 rounded-2xl rounded-tl-sm p-3.5 text-slate-200 leading-relaxed text-sm shadow animate-enter";
-        wrap.innerHTML = `<div class="text-[11px] font-semibold text-orange-400 mb-1">public_health_equity_broker · ADK Agent</div>${formatMarkdown(text)}`;
+        wrap.innerHTML = `<div class="text-[11px] font-semibold text-orange-400 mb-1">clinic_plan · ADK SequentialAgent</div>${formatMarkdown(text)}`;
       }
       feed.appendChild(wrap);
       feed.scrollTop = feed.scrollHeight;
@@ -1175,10 +1359,13 @@
       const btn = document.getElementById("sendBtn");
       input.value = "";
       btn.disabled = true;
-      btn.textContent = "Thinking...";
+      btn.textContent = "Running...";
 
       appendMessage("user", text);
-      const loadingBubble = appendMessage("agent", "⏳ Reasoning across county census tracts and running ADK agent...");
+      const loadingBubble = appendMessage(
+        "agent",
+        "⏳ Running `clinic_plan` pipeline (`gather_evidence` → `planner` → `review_loop` → `explainer` → `clinic_plan_report`)..."
+      );
 
       try {
         const res = await fetch("/api/chat", {
@@ -1189,6 +1376,10 @@
         const data = await res.json();
         loadingBubble.remove();
         appendMessage("agent", data.reply);
+
+        if (data.state && data.state.audit_verdict) {
+          document.getElementById("auditBadge").textContent = `VERDICT: ${data.state.audit_verdict}`;
+        }
 
         if (data.highlight_tracts && data.highlight_tracts.length > 0) {
           driveVanToTract(data.highlight_tracts[0]);
