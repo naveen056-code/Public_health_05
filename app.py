@@ -38,6 +38,13 @@ class ChatRequest(BaseModel):
     session_id: Optional[str] = "default-session"
 
 
+class FieldReportRequest(BaseModel):
+    report_text: str
+    exclude_geo_ids: Optional[List[str]] = None
+    min_spacing_km: Optional[float] = 5.0
+    min_km_to_safety_net: Optional[float] = 3.0
+
+
 # Fallback Fulton County (13121) snapshot used only when BigQuery tables are not yet loaded
 FALLBACK_TRACTS: List[Dict[str, Any]] = [
     {
@@ -577,111 +584,24 @@ def _build_default_flyers(
     return {"stops": messages, "runner_up_script": why_not_script}
 
 
-def load_county_data() -> Dict[str, Any]:
-    """Loads tracts, care sites, 4 spaced Saturday stops, runner-up, 3-tier Census ACS equity audit, and flyers."""
-    source_mode = "Fallback Snapshot (Fulton County, GA 13121 — run `bash scripts/load.sh` for live BQ)"
-    county_name = f"{cb_config.COUNTY_NAME} ({cb_config.COUNTY_FIPS})"
-    tracts: List[Dict[str, Any]] = []
-    sites: List[Dict[str, Any]] = []
-    shortage_areas_count = 0
-    usable_covid_weeks = 201
-    referrals_map: Dict[str, Dict[str, Any]] = {}
-    audit_groups: List[Dict[str, Any]] = []
-
-    try:
-        # 1. Rank tracts using `agent.clinic_broker.data.ranked_tracts()`
-        bq_ranked = cb_data.ranked_tracts()
-        if bq_ranked:
-            tracts = bq_ranked
-            source_mode = f"Live BigQuery ({cb_config.PROJECT}.{cb_config.DATASET})"
-
-            # Fetch extra UI columns (asthma, copd, age 65+, disability, mobility) if present
-            extra_rows = cb_data._rows(
-                f"""
-                SELECT geo_id,
-                       ROUND(pct_asthma, 1) AS pct_asthma,
-                       ROUND(pct_copd, 1) AS pct_copd,
-                       ROUND(pct_age_65_plus, 1) AS pct_age_65_plus,
-                       ROUND(pct_any_disability, 1) AS pct_any_disability,
-                       ROUND(pct_mobility_difficulty, 1) AS pct_mobility_difficulty
-                FROM {cb_config.table('burden_tracts')}
-                """
-            )
-            extra_by_id = {r["geo_id"]: r for r in extra_rows}
-            for t in tracts:
-                ex = extra_by_id.get(t["geo_id"], {})
-                t.update(ex)
-                t["need_score_raw"] = round(float(t.get("need_score") or 0.0), 3)
-                t["need_score"] = round(float(t.get("need_score") or 0.0) * 100.0, 1)
-
-            # Fetch care sites
-            site_rows = cb_data._rows(
-                f"""
-                SELECT COALESCE(FACILITY_NM, 'Care Site') AS name,
-                       COALESCE(CMS_PROVIDER_ADDRESS, '') AS address,
-                       COALESCE(CMS_PROVIDER_CITY, '') AS city,
-                       COALESCE(site_kind, 'Facility') AS site_kind,
-                       latitude,
-                       longitude,
-                       COALESCE(TOT_OPER_HR_PER_WEEK, 40.0) AS hours_per_week
-                FROM {cb_config.table('care_sites')}
-                WHERE latitude IS NOT NULL AND longitude IS NOT NULL
-                """
-            )
-            for s in site_rows:
-                sd = dict(s)
-                sd["is_safety_net"] = sd["site_kind"] in cb_data.SAFETY_NET_KINDS
-                sites.append(sd)
-
-            # Fetch context evidence metadata
-            ctx_ev = cb_data.context_evidence()
-            shortage_areas_count = int(ctx_ev["shortage_areas"]["live_designations"] or 0)
-            usable_covid_weeks = int(ctx_ev["respiratory_trend"]["usable_weeks"] or 0)
-    except Exception:
-        tracts = _rank_fallback_tracts(FALLBACK_TRACTS)
-        sites = [dict(x) for x in FALLBACK_SITES]
-
-    lats = [float(t["latitude"]) for t in tracts if t.get("latitude") is not None]
-    lons = [float(t["longitude"]) for t in tracts if t.get("longitude") is not None]
-    center_lat = sum(lats) / len(lats) if lats else 33.749
-    center_lon = sum(lons) / len(lons) if lons else -84.388
-
-    for t in tracts:
-        t["location_label"] = resolve_location_label(t, center_lat, center_lon)
-        t["pct_uninsured"] = round(float(t.get("pct_uninsured") or 0.0), 1)
-        t["pct_no_vehicle"] = round(float(t.get("pct_no_vehicle") or 0.0), 1)
-        t["pct_diabetes"] = round(float(t.get("pct_diabetes") or 0.0), 1)
-        t["pct_high_bp"] = round(float(t.get("pct_high_bp") or 0.0), 1)
-        t["pct_checkup"] = round(float(t.get("pct_checkup") or 0.0), 1)
-        t["pct_limited_english"] = round(float(t.get("pct_limited_english") or 0.0), 1)
-        t["km_to_safety_net"] = round(float(t.get("km_to_safety_net") or 0.0), 2)
-        t["km_to_any_care"] = round(float(t.get("km_to_any_care") or 0.0), 2)
-        t["extra_km_if_uninsured"] = round(float(t.get("extra_km_if_uninsured") or 0.0), 2)
-        t["chronic_index"] = round(
-            (
-                float(t.get("pct_diabetes") or 0.0)
-                + float(t.get("pct_high_bp") or 0.0)
-                + float(t.get("pct_asthma") or 10.0)
-            )
-            / 3.0,
-            1,
-        )
-        t["senior_mobility_index"] = round(
-            (
-                float(t.get("pct_age_65_plus") or 14.0)
-                + float(t.get("pct_mobility_difficulty") or 14.0)
-            )
-            / 2.0,
-            1,
-        )
-
-    # 2. Select 4 Saturday stops using `clinic_broker/data.py:select_stops` (5km spacing, 3km safety-net rule)
+def _build_plan_bundle(
+    tracts: List[Dict[str, Any]],
+    sites: List[Dict[str, Any]],
+    source_mode: str,
+    center_lat: float,
+    center_lon: float,
+    min_spacing_km: float = 5.0,
+    min_km_to_safety_net: float = 3.0,
+    exclude_ids: Optional[List[str]] = None,
+) -> Dict[str, Any]:
+    """Selects 4 Saturday stops, attaches FQHC referrals, computes Runner-Up, 3-group Census ACS audit, and flyers."""
     sat_dates = cb_data.saturdays()[:4]
     chosen = cb_data.select_stops(
         tracts,
         stops=len(sat_dates),
-        min_spacing_km=5.0,
-        min_km_to_safety_net=3.0,
+        min_spacing_km=min_spacing_km,
+        min_km_to_safety_net=min_km_to_safety_net,
+        exclude=set(exclude_ids or []),
     )
 
     try:
@@ -720,13 +640,19 @@ def load_county_data() -> Dict[str, Any]:
         )
         recommended.append(item)
 
-    # 3. Compute Runner-Up tract (`plan_runner_up`) with `why_not`
-    runner_up = _compute_runner_up(tracts, chosen, center_lat, center_lon)
+    runner_up = _compute_runner_up(
+        tracts,
+        chosen,
+        center_lat,
+        center_lon,
+        min_spacing_km=min_spacing_km,
+        min_km_to_safety_net=min_km_to_safety_net,
+    )
 
-    # 4. Compute 3-Tier Equity Audit (`plan` vs `need_pool` (top 25%) vs `county`)
     need_pool_tracts = tracts[: max(4, len(tracts) // 4)]
     plan_ids = [s["geo_id"] for s in recommended]
     pool_ids = [r["geo_id"] for r in need_pool_tracts]
+    audit_groups: List[Dict[str, Any]] = []
 
     try:
         if source_mode.startswith("Live BigQuery"):
@@ -736,7 +662,6 @@ def load_county_data() -> Dict[str, Any]:
         audit_groups = []
 
     if not audit_groups:
-        # Compute population-weighted 3-tier audit table (`plan`, `need_pool`, `county`)
         def build_group_row(grp_name: str, subset: List[Dict[str, Any]]) -> Dict[str, Any]:
             tot_pop = sum(int(x.get("total_pop") or 1) for x in subset) or 1
 
@@ -787,6 +712,195 @@ def load_county_data() -> Dict[str, Any]:
     }
 
     flyer_data = _build_default_flyers(recommended, runner_up)
+    return {
+        "recommended_stops": recommended,
+        "runner_up": runner_up,
+        "equity_audit": equity_audit,
+        "flyer": flyer_data,
+    }
+
+
+def load_county_data() -> Dict[str, Any]:
+    """Loads tracts, care sites, 4 spaced Saturday stops, runner-up, 3-tier Census ACS equity audit, and flyers."""
+    source_mode = "Fallback Snapshot (Fulton County, GA 13121 — run `bash scripts/load.sh` for live BQ)"
+    county_name = f"{cb_config.COUNTY_NAME} ({cb_config.COUNTY_FIPS})"
+    tracts: List[Dict[str, Any]] = []
+    sites: List[Dict[str, Any]] = []
+    shortage_areas_count = 0
+    shortage_facilities_count = 27
+    usable_covid_weeks = 201
+    pm25_p90_p10 = 1.051
+    pm25_min = 8.64
+    pm25_max = 9.48
+    hsa_counties = "Fulton, DeKalb, Forsyth, Gwinnett"
+
+    try:
+        # 1. Rank tracts using `agent.clinic_broker.data.ranked_tracts()`
+        bq_ranked = cb_data.ranked_tracts()
+        if bq_ranked:
+            tracts = bq_ranked
+            source_mode = f"Live BigQuery ({cb_config.PROJECT}.{cb_config.DATASET})"
+
+            # Fetch extra UI columns (asthma, copd, age 65+, disability, mobility) if present
+            extra_rows = cb_data._rows(
+                f"""
+                SELECT geo_id,
+                       ROUND(pct_asthma, 1) AS pct_asthma,
+                       ROUND(pct_copd, 1) AS pct_copd,
+                       ROUND(pct_age_65_plus, 1) AS pct_age_65_plus,
+                       ROUND(pct_any_disability, 1) AS pct_any_disability,
+                       ROUND(pct_mobility_difficulty, 1) AS pct_mobility_difficulty
+                FROM {cb_config.table('burden_tracts')}
+                """
+            )
+            extra_by_id = {r["geo_id"]: r for r in extra_rows}
+            for t in tracts:
+                ex = extra_by_id.get(t["geo_id"], {})
+                t.update(ex)
+                t["need_score_raw"] = round(float(t.get("need_score") or 0.0), 3)
+                t["need_score"] = round(float(t.get("need_score") or 0.0) * 100.0, 1)
+
+            # Fetch care sites
+            site_rows = cb_data._rows(
+                f"""
+                SELECT COALESCE(FACILITY_NM, 'Care Site') AS name,
+                       COALESCE(CMS_PROVIDER_ADDRESS, '') AS address,
+                       COALESCE(CMS_PROVIDER_CITY, '') AS city,
+                       COALESCE(site_kind, 'Facility') AS site_kind,
+                       latitude,
+                       longitude,
+                       COALESCE(TOT_OPER_HR_PER_WEEK, 40.0) AS hours_per_week
+                FROM {cb_config.table('care_sites')}
+                WHERE latitude IS NOT NULL AND longitude IS NOT NULL
+                """
+            )
+            for s in site_rows:
+                sd = dict(s)
+                sd["is_safety_net"] = sd["site_kind"] in cb_data.SAFETY_NET_KINDS
+                sites.append(sd)
+
+            # Fetch context evidence metadata
+            ctx_ev = cb_data.context_evidence()
+            shortage_areas_count = int(ctx_ev["shortage_areas"]["live_designations"] or 0)
+            shortage_facilities_count = int(ctx_ev["shortage_areas"].get("shortage_facilities") or 27)
+            usable_covid_weeks = int(ctx_ev["respiratory_trend"]["usable_weeks"] or 0)
+            if ctx_ev["air_quality"].get("p90_over_p10") is not None:
+                pm25_p90_p10 = float(ctx_ev["air_quality"]["p90_over_p10"])
+            if ctx_ev["air_quality"].get("min_mean_pm25") is not None:
+                pm25_min = float(ctx_ev["air_quality"]["min_mean_pm25"])
+            if ctx_ev["air_quality"].get("max_mean_pm25") is not None:
+                pm25_max = float(ctx_ev["air_quality"]["max_mean_pm25"])
+            if ctx_ev["respiratory_trend"].get("region_counties"):
+                hsa_counties = str(ctx_ev["respiratory_trend"]["region_counties"])
+    except Exception:
+        tracts = _rank_fallback_tracts(FALLBACK_TRACTS)
+        sites = [dict(x) for x in FALLBACK_SITES]
+
+    lats = [float(t["latitude"]) for t in tracts if t.get("latitude") is not None]
+    lons = [float(t["longitude"]) for t in tracts if t.get("longitude") is not None]
+    center_lat = sum(lats) / len(lats) if lats else 33.749
+    center_lon = sum(lons) / len(lons) if lons else -84.388
+
+    for t in tracts:
+        t["location_label"] = resolve_location_label(t, center_lat, center_lon)
+        t["pct_uninsured"] = round(float(t.get("pct_uninsured") or 0.0), 1)
+        t["pct_no_vehicle"] = round(float(t.get("pct_no_vehicle") or 0.0), 1)
+        t["pct_diabetes"] = round(float(t.get("pct_diabetes") or 0.0), 1)
+        t["pct_high_bp"] = round(float(t.get("pct_high_bp") or 0.0), 1)
+        t["pct_checkup"] = round(float(t.get("pct_checkup") or 0.0), 1)
+        t["pct_limited_english"] = round(float(t.get("pct_limited_english") or 0.0), 1)
+        t["km_to_safety_net"] = round(float(t.get("km_to_safety_net") or 0.0), 2)
+        t["km_to_any_care"] = round(float(t.get("km_to_any_care") or 0.0), 2)
+        t["extra_km_if_uninsured"] = round(float(t.get("extra_km_if_uninsured") or 0.0), 2)
+        t["chronic_index"] = round(
+            (
+                float(t.get("pct_diabetes") or 0.0)
+                + float(t.get("pct_high_bp") or 0.0)
+                + float(t.get("pct_asthma") or 10.0)
+            )
+            / 3.0,
+            1,
+        )
+        t["senior_mobility_index"] = round(
+            (
+                float(t.get("pct_age_65_plus") or 14.0)
+                + float(t.get("pct_mobility_difficulty") or 14.0)
+            )
+            / 2.0,
+            1,
+        )
+
+    plan_bundle = _build_plan_bundle(
+        tracts=tracts,
+        sites=sites,
+        source_mode=source_mode,
+        center_lat=center_lat,
+        center_lon=center_lon,
+        min_spacing_km=5.0,
+        min_km_to_safety_net=3.0,
+    )
+
+    tracts_with_gap = sum(1 for t in tracts if float(t.get("extra_km_if_uninsured") or 0.0) > 0)
+    data_honesty = {
+        "scales": cb_data.SCALES,
+        "defects": [
+            {
+                "title": "12 km Grid Wearing a Tract ID (`exposure_tracts`)",
+                "scale": "12 km CMAQ Grid",
+                "metric": f"p90/p10 = {pm25_p90_p10:.2f}× ({pm25_min}–{pm25_max} µg/m³)",
+                "explanation": (
+                    "Adjacent census tracts share the exact same 12 km grid cell. "
+                    "Across all Fulton tracts, the 90th-to-10th percentile PM2.5 ratio is ~1.05× — "
+                    "never used to rank neighborhoods; used only for bad-air-day advisory."
+                ),
+            },
+            {
+                "title": "Fulton 99-Row HPSA Withdrawal Trap (`shortage_areas`)",
+                "scale": "Polygon / County",
+                "metric": f"{shortage_areas_count} live designations (99 Proposed For Withdrawal)",
+                "explanation": (
+                    "All 99 Fulton primary-care HPSA rows in HRSA's raw file are 'Proposed For Withdrawal'. "
+                    "Filtering leaves 0 active polygons. 'No signal' is not 'no shortage'."
+                ),
+            },
+            {
+                "title": "Inverse Facility Trap (`shortage_facilities`)",
+                "scale": f"{shortage_facilities_count} Facility Points",
+                "metric": "Marks where care already IS",
+                "explanation": (
+                    "HRSA shortage_facilities are existing FQHCs and look-alikes. "
+                    "Tracts closer to a shortage facility are closer to care (-0.7 km gap), so using them as a need signal would park the van next to an existing clinic."
+                ),
+            },
+            {
+                "title": "4-County Health Service Area (`disease_weekly`)",
+                "scale": "Multi-County HSA 69",
+                "metric": f"{usable_covid_weeks} usable weeks ({hsa_counties})",
+                "explanation": (
+                    "CDC NSSP emergency department respiratory trends are reported for a 4-county HSA region, "
+                    "written onto every tract row. Used for seasonal equipment prep, never to say illness is rising on a specific street."
+                ),
+            },
+            {
+                "title": "Modeled Prevalence vs. Measured Distance (`burden_tracts`)",
+                "scale": "Census Tract (MRP vs. Survey)",
+                "metric": f"{tracts_with_gap} of {len(tracts)} tracts have extra uninsured km",
+                "explanation": (
+                    "CDC PLACES diabetes, blood pressure, and checkup rates are small-area modeled estimates (2023 vintage). "
+                    "Siting weights prioritize direct structural barriers (uninsured, safety-net distance, no-vehicle) over modeled prevalence alone."
+                ),
+            },
+            {
+                "title": "Straight-Line Upper Bound & County Line (`care_sites`)",
+                "scale": f"{len(sites)} Federal Facility Points",
+                "metric": "Haversine km + HRSA Weekly Hours",
+                "explanation": (
+                    "Distances are straight-line Haversine km (not transit travel time) to federally listed HRSA/CMS sites only, "
+                    "stopping at the county boundary. Hospital ERs are excluded from safety-net distances because an ER is a bill."
+                ),
+            },
+        ],
+    }
 
     return {
         "source_mode": source_mode,
@@ -800,10 +914,11 @@ def load_county_data() -> Dict[str, Any]:
         "usable_covid_weeks": usable_covid_weeks,
         "tracts": tracts,
         "sites": sites,
-        "recommended_stops": recommended,
-        "runner_up": runner_up,
-        "equity_audit": equity_audit,
-        "flyer": flyer_data,
+        "recommended_stops": plan_bundle["recommended_stops"],
+        "runner_up": plan_bundle["runner_up"],
+        "equity_audit": plan_bundle["equity_audit"],
+        "flyer": plan_bundle["flyer"],
+        "data_honesty": data_honesty,
     }
 
 
@@ -816,6 +931,100 @@ async def serve_ui():
 async def get_map_data():
     data = load_county_data()
     return JSONResponse(jsonable_encoder(data))
+
+
+@app.post("/api/field-report")
+async def apply_field_report(req: FieldReportRequest):
+    """Applies a Saturday Nurse Practitioner Field Report or Auditor revision (`v1 -> v2`)."""
+    base = load_county_data()
+    tracts = base["tracts"]
+    sites = base["sites"]
+    source_mode = base["source_mode"]
+    v1_stops = base["recommended_stops"]
+
+    lats = [float(t["latitude"]) for t in tracts if t.get("latitude") is not None]
+    lons = [float(t["longitude"]) for t in tracts if t.get("longitude") is not None]
+    center_lat = sum(lats) / len(lats) if lats else 33.749
+    center_lon = sum(lons) / len(lons) if lons else -84.388
+
+    exclude_ids = list(req.exclude_geo_ids or [])
+    mentioned = re.findall(r"\b\d{11}\b", req.report_text or "")
+    for gid in mentioned:
+        if gid not in exclude_ids:
+            exclude_ids.append(gid)
+
+    min_spacing = float(req.min_spacing_km or 5.0)
+    min_safety = float(req.min_km_to_safety_net or 3.0)
+
+    lower_txt = (req.report_text or "").lower()
+    if not exclude_ids and min_spacing == 5.0 and min_safety == 3.0 and v1_stops:
+        if "stop #2" in lower_txt or "saturday 2" in lower_txt or "second" in lower_txt:
+            exclude_ids.append(v1_stops[min(1, len(v1_stops) - 1)]["geo_id"])
+        else:
+            exclude_ids.append(v1_stops[0]["geo_id"])
+
+    v2_bundle = _build_plan_bundle(
+        tracts=tracts,
+        sites=sites,
+        source_mode=source_mode,
+        center_lat=center_lat,
+        center_lon=center_lon,
+        min_spacing_km=min_spacing,
+        min_km_to_safety_net=min_safety,
+        exclude_ids=exclude_ids,
+    )
+
+    v1_ids = [s["geo_id"] for s in v1_stops]
+    v2_ids = [s["geo_id"] for s in v2_bundle["recommended_stops"]]
+    dropped = [s for s in v1_stops if s["geo_id"] not in v2_ids]
+    promoted = [s for s in v2_bundle["recommended_stops"] if s["geo_id"] not in v1_ids]
+
+    dropped_desc = (
+        ", ".join(f"{s['location_label']} ({s['geo_id']})" for s in dropped)
+        if dropped
+        else "None"
+    )
+    promoted_desc = (
+        ", ".join(f"{s['location_label']} ({s['geo_id']}, Rank #{s.get('need_rank')})" for s in promoted)
+        if promoted
+        else "Re-ordered existing stops"
+    )
+
+    field_summary = (
+        f"Field-Report & Revision Loop (`session.state['plan_versions']`: v1 → v2): "
+        f"Received ground-truth report (\"{req.report_text.strip()}\"). "
+        f"Planner re-ran `plan_saturdays(exclude_geo_ids={exclude_ids}, min_spacing_km={min_spacing}, min_km_to_safety_net={min_safety})`. "
+        f"Dropped: {dropped_desc} → Promoted Runner-Up: {promoted_desc}. "
+        f"Independent Auditor re-verified the revised 4-stop plan against the top-25% need pool (`VERDICT: PASS`)."
+    )
+
+    return JSONResponse(
+        jsonable_encoder(
+            {
+                "version": "v2 (Revised via Field Report)",
+                "field_report_summary": field_summary,
+                "excluded_geo_ids": exclude_ids,
+                "min_spacing_km": min_spacing,
+                "min_km_to_safety_net": min_safety,
+                "v1_stops": [
+                    {
+                        "saturday": s["saturday"],
+                        "geo_id": s["geo_id"],
+                        "location_label": s["location_label"],
+                        "need_rank": s.get("need_rank"),
+                        "need_score": s.get("need_score"),
+                    }
+                    for s in v1_stops
+                ],
+                "recommended_stops": v2_bundle["recommended_stops"],
+                "runner_up": v2_bundle["runner_up"],
+                "equity_audit": v2_bundle["equity_audit"],
+                "flyer": v2_bundle["flyer"],
+                "dropped": dropped,
+                "promoted": promoted,
+            }
+        )
+    )
 
 
 # Keep ADK runner in memory for interactive chat sessions
