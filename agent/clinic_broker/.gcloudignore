@@ -1,0 +1,6 @@
+# Read by `adk deploy cloud_run` when it copies this folder into the image.
+# .env is deliberately NOT ignored: it carries the project, dataset and the
+# `global` Gemini location the service needs at runtime. It holds no secrets.
+.adk/
+__pycache__/
+.env.example

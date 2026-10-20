@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clinic Broker · Fulton County mobile clinic planner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="/ui/styles.css">
+</head>
+<body>
+<header class="bar">
+  <div class="brand">
+    <span class="mark" aria-hidden="true">✚</span>
+    <div>
+      <p class="name">Clinic Broker</p>
+      <p class="county" id="county">Fulton County, GA · mobile clinic</p>
+    </div>
+  </div>
+  <form class="controls" id="plan-form">
+    <label class="field">
+      <span>Month</span>
+      <input type="month" id="month" required>
+    </label>
+    <label class="field grow">
+      <span>Anything the plan should take into account? <em>(optional)</em></span>
+      <input type="text" id="request" placeholder="e.g. rank only on the uninsured rate, or leave out tract 13121007604" autocomplete="off">
+    </label>
+    <div class="buttons">
+      <button type="submit" id="run" class="primary">Plan the month</button>
+      <button type="button" id="sample" class="ghost">Replay a saved run</button>
+    </div>
+  </form>
+</header>
+
+<main>
+  <section class="agents" aria-labelledby="agents-h">
+    <div class="agents-head">
+      <h2 id="agents-h">Agents at work</h2>
+      <p class="status" id="status" aria-live="polite">Pick a month and press <b>Plan the month</b>. A run takes two to five minutes.</p>
+      <p class="timer" id="timer"></p>
+    </div>
+    <ol class="strip" id="strip"></ol>
+    <p class="activity" id="activity"></p>
+  </section>
+
+  <div class="notice" id="changed" hidden>
+    <p class="notice-k">The auditor rejected the first plan</p>
+    <p id="changed-text"></p>
+  </div>
+
+  <div class="workspace">
+    <figure class="mapcard">
+      <div class="mapwrap">
+        <svg id="map" role="img" aria-label="Map of Fulton County census tracts shaded by need, with the planned stops numbered"></svg>
+        <div class="tip" id="tip" hidden></div>
+      </div>
+      <figcaption class="legend" id="legend">
+        <span class="ramp" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+        <span>Need score, low → high</span>
+        <span class="lg"><svg width="14" height="14" aria-hidden="true"><path d="M7 2v10M2 7h10" class="lg-cross"/></svg>Safety-net clinic</span>
+        <span class="lg"><svg width="16" height="16" aria-hidden="true"><circle cx="8" cy="8" r="7" class="lg-stop"/></svg>Planned stop</span>
+        <span class="lg" id="lg-v1" hidden><svg width="16" height="16" aria-hidden="true"><circle cx="8" cy="8" r="6.5" class="lg-ghost"/></svg>Rejected first plan</span>
+      </figcaption>
+    </figure>
+
+    <section class="plan" aria-labelledby="plan-h">
+      <div class="plan-head">
+        <h2 id="plan-h">Four Saturdays</h2>
+        <span class="verdict" id="verdict" hidden></span>
+      </div>
+      <div id="stops" class="stops">
+        <div class="empty">
+          <p><b>No plan yet.</b></p>
+          <p>The planner picks four tracts that need the van most: uninsured adults, distance to a clinic that sees them, households without a car, diabetes and blood pressure, missed checkups. Then an independent auditor checks who the plan reaches.</p>
+        </div>
+      </div>
+      <p class="runner" id="runner" hidden></p>
+    </section>
+  </div>
+
+  <section class="tabs" id="tabs" hidden>
+    <div class="tablist" role="tablist">
+      <button role="tab" id="t-audit" aria-controls="p-audit" aria-selected="true">Equity audit</button>
+      <button role="tab" id="t-flyer" aria-controls="p-flyer" aria-selected="false">Flyer &amp; messages</button>
+      <button role="tab" id="t-funder" aria-controls="p-funder" aria-selected="false">For the funder</button>
+      <button role="tab" id="t-limits" aria-controls="p-limits" aria-selected="false">What we could not tell you</button>
+      <button role="tab" id="t-notes" aria-controls="p-notes" aria-selected="false">Planner's full plan</button>
+    </div>
+    <div role="tabpanel" id="p-audit" aria-labelledby="t-audit" class="panel"></div>
+    <div role="tabpanel" id="p-flyer" aria-labelledby="t-flyer" class="panel" hidden></div>
+    <div role="tabpanel" id="p-funder" aria-labelledby="t-funder" class="panel prose" hidden></div>
+    <div role="tabpanel" id="p-limits" aria-labelledby="t-limits" class="panel prose" hidden></div>
+    <div role="tabpanel" id="p-notes" aria-labelledby="t-notes" class="panel prose" hidden></div>
+  </section>
+</main>
+
+<footer class="foot">
+  <p>Data: CDC PLACES 2025 (modeled tract estimates) · CDC/ATSDR SVI 2022 · HRSA and CMS facility files · EPA/CDC PM2.5 · CDC NSSP · Census ACS 2016-2020 and 2020 tract boundaries (audit only). Distances are straight-line to federal sites, so they are upper bounds. This tool plans where a van parks; it gives no advice about anyone's health.</p>
+  <p><a href="/dev-ui/">Developer view (ADK event graph)</a></p>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.3.0/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
+<script src="/ui/app.js"></script>
+</body>
+</html>

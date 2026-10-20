@@ -1,0 +1,6 @@
+# Files gcloud leaves out when it uploads this folder to build the container.
+.gcloudignore
+**/.adk/
+**/__pycache__/
+**/*.pyc
+clinic_broker/.env.example
