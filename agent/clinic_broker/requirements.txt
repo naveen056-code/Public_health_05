@@ -1,0 +1,4 @@
+google-adk[mcp]==2.7.0
+google-cloud-bigquery[pandas]
+db-dtypes
+google-auth

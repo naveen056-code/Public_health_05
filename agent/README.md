@@ -1,6 +1,203 @@
-# Your agent goes here
+# Clinic Broker: where the mobile clinic parks, and why
 
-This folder is empty on purpose.
+**Track: Siting.** Our agent helps **the outreach lead** in **Fulton County, GA** decide
+**where the county's one mobile clinic parks on next month's four Saturdays**, and the
+thing it knows that a spreadsheet does not is **which of its own numbers it can trust, at
+what scale, and whether the plan lands fairly on the people it is meant to reach.**
+
+The audit and the neighborhood messages are not separate products. They are what make
+the siting plan honest, and each one is its own agent.
+
+**Live (ADK web UI):** https://clinic-broker-702160158477.us-east1.run.app/dev-ui/: pick
+`clinic_broker` and ask *"Plan next month's four Saturday stops for the van."* A run takes
+about two minutes. The **State** tab and the event graph show each agent's hand-off.
+
+## What it produces: the Clinic Plan
+
+1. **Where the van goes, and why.** Four dated Saturdays, each a named census tract with
+   its population, need rank, the two or three numbers that put it there, and the nearest
+   clinic that sees uninsured patients for follow-up care, with its weekly hours.
+2. **What we could not tell you.** Every limit named with its scale: the air data is a 12 km
+   grid, the respiratory data is a four-county region and 11+ weeks old, there are no live
+   shortage areas, the clinic list is federal-only, and distances are straight-line.
+3. **Who this plan lands on.** The equity audit: plan vs. high-need tracts vs. county, on
+   race and ethnicity the planner never saw, plus age 65+, limited English, disability and
+   no-vehicle households. The audit result is reported whether it passes or not.
+4. **What we hand to the neighborhood.** English and Spanish text messages for each stop,
+   and a "why not us?" script for the closest neighborhood that did not get a Saturday.
+
+## Architecture
+
+```
+clinic_plan (SequentialAgent)
+├─ gather_evidence (ParallelAgent)        no model; fixed SQL
+│   ├─ need_lookup      → state.evidence_need       tract
+│   ├─ context_lookup   → state.evidence_context    12 km grid · multi-county region
+│   └─ capacity_lookup  → state.evidence_capacity   facility points
+├─ planner (LlmAgent)                     tools: plan_saturdays, rank_tracts
+│     → state.plan, plan_stops, need_pool_geo_ids, plan_versions
+├─ review_loop (LoopAgent, max 3 rounds; always ends on an audit)
+│   ├─ auditor (LlmAgent)                 tool: BigQuery managed MCP (execute_sql_readonly)
+│   │     reads plan_stops, plan, need_pool_geo_ids → state.audit_report, audit_verdict
+│   │     PASS ends the loop
+│   └─ revise_if_rejected → reviser (LlmAgent, same tools as planner)
+│         reads audit_report, plan, plan_params → state.plan, plan_stops (new version)
+├─ explainer (LlmAgent)                   no tools
+│     reads plan_stops, plan_runner_up → state.flyer
+└─ clinic_plan_report                     no model; assembles the four parts
+```
+
+### Who can see what (this is the design)
+
+| Agent | Can see | Cannot see |
+|---|---|---|
+| Planner / reviser | Our tools over the challenge tables (need, access, capacity) | Race or ethnicity: **no tool it holds can read them** |
+| Auditor | The plan's tract IDs and text; Census race and ethnicity via BigQuery MCP | The planner's reasoning (`include_contents="none"`), so it cannot be talked into defending the plan |
+| Explainer | The final stops and the runner-up | The analysis, the audit, the raw tables |
+
+"The planner cannot see race" is enforced by the code, not by a sentence in a prompt: the
+planner's only route to data is [`tools.py`](clinic_broker/tools.py) →
+[`data.py`](clinic_broker/data.py), which never reads demographics. The Census join exists
+only in [`audit.py`](clinic_broker/audit.py), and only the auditor holds the MCP tool.
+
+### The four judge questions
+
+1. **Delete any one agent and the answer gets worse.** Without the auditor, the
+   uninsured-only plan below ships unchanged and under-reaches older adults. Without the
+   explainer, the neighborhood gets a document written for a professional. Without the
+   planner, nothing produces the stops.
+2. **A state key written by one agent and read by another:** `plan_stops` is written by the
+   planner's `plan_saturdays` tool and read by the auditor (to build its Census query) and
+   the explainer. `audit_report` is written by the auditor and read by the reviser.
+3. **Two agents whose instructions conflict:** the planner must *hedge, cite and label
+   every number with its scale*; the explainer must be *warm, plain, sixth-grade, no
+   statistics, no hedging*, in English and Spanish. See [`prompts.py`](clinic_broker/prompts.py).
+4. **Where the system rejected its own first answer:** see the second run below.
+
+## What "needs the van" means
+
+Each tract (500+ people) is percent-ranked within the county on five measures and combined:
+
+| Measure | Weight | Why |
+|---|---:|---|
+| Uninsured, adults 18-64 (PLACES `pct_uninsured`) | 0.30 | The van exists for people a clinic will not see for free |
+| Straight-line km to a safety-net site (FQHC / HRSA health center) | 0.25 | Care you can actually use, not any care |
+| Households with no vehicle (SVI) | 0.20 | A car makes 5 km nothing; no car makes it a day off work |
+| Diabetes + high blood pressure (PLACES) | 0.15 | What the van's glucometer and cuff screen for |
+| Adults without a routine checkup (PLACES) | 0.10 | Low is bad on this one |
+
+Then: skip tracts already within 3 km of a safety-net site, and keep the four stops at
+least 5 km apart so four Saturdays reach four areas. **Air quality and the respiratory
+trend are deliberately not inputs:** in Fulton the cleanest and dirtiest tracts' PM2.5
+differ by 4.7% (p90/p10) because it is a 12 km grid, and the respiratory figure covers
+Clayton, DeKalb, Fulton and Gwinnett together.
+
+## The equity audit, and what it found
+
+The auditor compares the people living in the four stop tracts with the **need pool**
+(the top quarter of tracts by need score), not with the county: a plan built on need
+should not look like the county. It flags a group that is under-reached (under half its
+need-pool share), and checks whether any over-concentration is explained by measured need
+or is a proxy for something else. Race and ethnicity come from the 2016-2020 ACS
+(`bigquery-public-data.census_bureau_acs.censustract_2020_5yr`, US Government work); the
+challenge tables leave them out on purpose.
+
+**Run 1: default weights → PASS.**
+
+| | Plan | Need pool | County |
+|---|---:|---:|---:|
+| Black, non-Hispanic | 63.6% | 73.6% | 43.1% |
+| White, non-Hispanic | 6.8% | 11.8% | 39.3% |
+| Hispanic, any race | 25.4% | 9.5% | 7.2% |
+| Asian, non-Hispanic | 0.6% | 1.9% | 7.3% |
+
+The Hispanic over-concentration comes from one stop, tract 13121011430, and the auditor
+found it explained by measured need: 24.9% uninsured and 13.5 km from a safety-net site.
+With four stops, one tract moves a share by 20+ points, and the audit says so.
+
+**Run 2: "rank only on the uninsured rate, that's what our funder cares about" → REVISE,
+then PASS.** The auditor found the plan under-reached adults 65+ (**5.4%** of the plan
+vs **12.7%** of the need pool). The cause is a defect the challenge warns about:
+`pct_uninsured` covers adults 18-64 only, and Medicare covers almost everyone over 65, so
+ranking on it alone pushes older neighborhoods down. The required fix was need-based
+(restore chronic-disease and vehicle weights), never "add more of a group". The revised
+plan opens with *"We changed what you asked for"*, saying what was asked, what changed, why,
+and that the original is still available: overriding the user is the outreach lead's call
+to see, not ours to hide.
+
+The rule for disagreements: the reviser may change only need and access parameters. If an
+equity finding cannot be fixed that way, it keeps the stops and reports an *open
+disagreement with the audit* for the outreach lead to decide.
+
+## Scale of every number
+
+| Claim | Scale | Measured or modeled |
+|---|---|---|
+| Uninsured, diabetes, blood pressure, checkup | Census tract | **Modeled** (CDC PLACES small-area estimates) |
+| No vehicle, limited English, age 65+ | Census tract | Survey estimate (CDC SVI / ACS) |
+| Race and ethnicity (audit only) | Census tract | Survey estimate (ACS 2016-2020) |
+| km to care | Tract centre → facility point | Computed; straight line, federal sites only: an **upper bound** |
+| PM2.5 | **12 km model grid** wearing a tract ID | Modeled; cannot separate neighborhoods |
+| Respiratory ED visits | **Multi-county Health Service Area** on a county key | Measured, but regional and 11+ weeks old |
+
+## Limitations
+
+- **Straight-line distance is not travel time.** No license-clean travel-time dataset exists.
+- **Federal clinics only.** County and free clinics are in no national list, so every
+  distance is an upper bound.
+- **Distances stop at the county line.** A border tract may be closer to a clinic next door.
+- **Modeled prevalence.** Two tracts a point apart may be the same tract; PLACES confidence
+  intervals are not loaded yet.
+- **Zero live shortage areas in Fulton.** All 99 HRSA designations are *Proposed For
+  Withdrawal*. No signal is not no problem.
+- **Run-to-run variation.** The stops come from deterministic SQL, but when the reviser
+  re-weights, its choice of weights can differ between runs.
+- **No parking spots or times.** The explainer writes `[parking spot]` and `[time]` for
+  staff to fill in rather than invent them.
+
+## Run it
+
+```bash
+python3.12 -m venv .venv && source .venv/bin/activate
+pip install -r agent/clinic_broker/requirements.txt
+gcloud auth application-default login            # an account in the lab project
+cp agent/clinic_broker/.env.example agent/clinic_broker/.env   # set GOOGLE_CLOUD_PROJECT
+bash scripts/load.sh 13121                       # needs bash 4: run it in Cloud Shell
+cd agent && adk web .                            # http://127.0.0.1:8000
+```
+
+`GOOGLE_CLOUD_LOCATION` must be `global`: Gemini 3.x returns "model not found" on regional
+endpoints in the lab project. The `mcp` package must stay below 2.0 for ADK 2.7
+(`google-adk[mcp]==2.7.0` pins it).
+
+**Deploy** (from `agent/`):
+
+```bash
+adk deploy cloud_run --project=$PROJECT --region=us-east1 --service_name=clinic-broker \
+  --with_ui clinic_broker -- --memory=1Gi --timeout=900 --max-instances=1 \
+  --set-env-vars=GOOGLE_CLOUD_LOCATION=global,GOOGLE_GENAI_USE_VERTEXAI=true
+```
+
+`--set-env-vars` matters: the generated Dockerfile sets `GOOGLE_CLOUD_LOCATION` to the
+deploy region. `--max-instances=1` because the dev UI keeps sessions in memory.
+
+## Files
+
+| File | What it holds |
+|---|---|
+| [`agent.py`](clinic_broker/agent.py) | The pipeline wiring and who-sees-what |
+| [`data.py`](clinic_broker/data.py) | Ranking SQL, stop selection, evidence lookups, scale labels. No demographics |
+| [`tools.py`](clinic_broker/tools.py) | Our function tools: `plan_saturdays`, `rank_tracts` |
+| [`audit.py`](clinic_broker/audit.py) | BigQuery MCP toolset, the Census audit query, verdict handling |
+| [`prompts.py`](clinic_broker/prompts.py) | Planner, reviser and explainer instructions |
+| [`workflow.py`](clinic_broker/workflow.py) | Model-free agents: evidence lookups, conditional reviser, report |
+
+---
+
+# Challenge notes from the organizers
+
+*Kept as shipped: the requirements, and the ADK API as the organizers verified it on
+2026-08-10.*
 
 We built the on-ramp: every federally recognized care site in your county with coordinates, the
 census tracts around them with disease burden, insurance, vehicle access and mobility, the federal
