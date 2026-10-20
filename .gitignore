@@ -6,6 +6,9 @@ venv/
 env/
 *.egg-info/
 
+# adk web's local session store
+.adk/
+
 # Notebooks
 .ipynb_checkpoints/
 
