@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from google.adk.tools import ToolContext
 
-from . import data
+from . import data, outreach
 
 
 def rank_tracts(
@@ -93,6 +93,8 @@ def plan_saturdays(
     for date, r in zip(dates, chosen):
         s = data.tract_summary(r)
         s["saturday"] = date
+        s["saturday_en"] = outreach.date_label(date, "en")
+        s["saturday_es"] = outreach.date_label(date, "es")
         s["refer_to"] = referrals.get(r["geo_id"])
         stops.append(s)
 
