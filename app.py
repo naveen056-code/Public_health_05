@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI
+from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
@@ -540,11 +541,11 @@ def _build_default_flyers(
     """Generates plain-language English + Spanish (<300 chars) messages matching `prompts.EXPLAINER`."""
     messages = []
     for s in stops:
-        loc = s.get("location_label", f"Tract {s['geo_id']}")
-        sat = s.get("saturday", s.get("saturday_slot", "Saturday"))
+        loc = s.get("location_label") or f"Tract {s['geo_id']}"
+        sat = s.get("saturday") or s.get("saturday_slot") or "Saturday"
         ref = s.get("refer_to") or {}
-        ref_name = ref.get("name", "Southside Medical Center")
-        ref_hrs = int(ref.get("hours_per_week") or 40)
+        ref_name = ref.get("name") or "Southside Medical Center"
+        ref_hrs = int(float(ref.get("hours_per_week") or 40))
         en = (
             f"Free health van in {loc} on Sat {sat}, 9am–2pm! Walk in for blood pressure & "
             f"blood sugar checks, no insurance or ID needed. Need follow-up care? We connect "
@@ -697,11 +698,19 @@ def load_county_data() -> Dict[str, Any]:
         item["saturday"] = sat_date
         item["saturday_slot"] = f"Saturday {idx + 1} · {sat_date}"
         item["rank"] = idx + 1
-        item["refer_to"] = referrals_map.get(item["geo_id"])
-        ref = item["refer_to"] or {}
+        raw_ref = referrals_map.get(item["geo_id"])
+        ref = dict(raw_ref) if raw_ref else {}
+        if ref.get("hours_per_week") is None:
+            ref["hours_per_week"] = 40
+        if ref.get("km") is None:
+            ref["km"] = item["km_to_safety_net"]
+        if not ref.get("name"):
+            ref["name"] = "Nearest Safety-Net FQHC"
+        item["refer_to"] = ref
+        ref_hrs = int(float(ref.get("hours_per_week") or 40))
         ref_str = (
-            f"Refer follow-ups to {ref.get('name', 'nearest FQHC')} "
-            f"({ref.get('km', item['km_to_safety_net'])} km, {int(ref.get('hours_per_week', 40))} hrs/wk)."
+            f"Refer follow-ups to {ref['name']} "
+            f"({ref['km']} km, {ref_hrs} hrs/wk)."
         )
         item["rationale"] = (
             f"Ranked #{item.get('need_rank', idx + 1)} of {item.get('tracts_ranked', len(tracts))} tracts: "
@@ -770,8 +779,8 @@ def load_county_data() -> Dict[str, Any]:
         "audit_summary": (
             f"Planner never saw race or ethnicity (`agent/clinic_broker/data.py`). "
             f"Independent Auditor (`agent/clinic_broker/audit.py`) joined Census ACS 5-yr demographics "
-            f"comparing the 4 chosen stops (`plan`, pop {plan_g['population']:,}) against the top-quarter "
-            f"high-need tracts (`need_pool`, pop {pool_g['population']:,}) and `{cb_config.COUNTY_NAME}` overall. "
+            f"comparing the 4 chosen stops (`plan`, pop {int(plan_g.get('population') or 0):,}) against the top-quarter "
+            f"high-need tracts (`need_pool`, pop {int(pool_g.get('population') or 0):,}) and `{cb_config.COUNTY_NAME}` overall. "
             f"No group ≥10% of the need pool is under-reached (<0.5× pool share); concentration in South/West "
             f"Fulton is fully explained by measured uninsured rate, safety-net distance, and no-vehicle share."
         ),
@@ -806,7 +815,7 @@ async def serve_ui():
 @app.get("/api/map-data")
 async def get_map_data():
     data = load_county_data()
-    return JSONResponse(data)
+    return JSONResponse(jsonable_encoder(data))
 
 
 # Keep ADK runner in memory for interactive chat sessions
@@ -870,8 +879,8 @@ async def run_adk_agent(
                 f"(Rank `#{s.get('need_rank', i + 1)}`, Score `{s['need_score']}`): "
                 f"`{s['pct_uninsured']}%` uninsured, `{s['km_to_safety_net']} km` to nearest safety-net "
                 f"(`+{s['extra_km_if_uninsured']} km` uninsured gap), `{s['pct_no_vehicle']}%` no-vehicle. "
-                f"**Referral:** `{(s.get('refer_to') or {}).get('name', 'Nearest FQHC')}` "
-                f"(`{int((s.get('refer_to') or {}).get('hours_per_week', 40))} hrs/wk`)."
+                f"**Referral:** `{(s.get('refer_to') or {}).get('name') or 'Nearest FQHC'}` "
+                f"(`{int(float((s.get('refer_to') or {}).get('hours_per_week') or 40))} hrs/wk`)."
                 for i, s in enumerate(top4)
             )
             + (
@@ -902,17 +911,19 @@ async def chat_endpoint(req: ChatRequest):
     state = result.get("state") or {}
     mentioned_tracts = re.findall(r"\b\d{11}\b", reply)
     return JSONResponse(
-        {
-            "reply": reply,
-            "highlight_tracts": list(dict.fromkeys(mentioned_tracts)),
-            "state": {
-                "plan_stops": state.get("plan_stops"),
-                "plan_runner_up": state.get("plan_runner_up"),
-                "audit_verdict": state.get("audit_verdict"),
-                "audit_report": state.get("audit_report"),
-                "flyer": state.get("flyer"),
-            },
-        }
+        jsonable_encoder(
+            {
+                "reply": reply,
+                "highlight_tracts": list(dict.fromkeys(mentioned_tracts)),
+                "state": {
+                    "plan_stops": state.get("plan_stops"),
+                    "plan_runner_up": state.get("plan_runner_up"),
+                    "audit_verdict": state.get("audit_verdict"),
+                    "audit_report": state.get("audit_report"),
+                    "flyer": state.get("flyer"),
+                },
+            }
+        )
     )
 
 
