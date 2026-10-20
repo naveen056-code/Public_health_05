@@ -1,6 +1,6 @@
 # Clinic Broker architecture
 
-Five Gemini agents and four code steps decide where Fulton County's mobile clinic parks on
+Five Gemini agents and five code steps decide where Fulton County's mobile clinic parks on
 next month's four Saturdays. This page shows how they pass work to each other, what each
 one is allowed to see, and where it all runs. The code is in
 [`agent/clinic_broker/`](../agent/clinic_broker/); the full write-up is in
@@ -89,8 +89,9 @@ flowchart LR
 
 The cause was a data defect, not a demographic choice: the uninsured measure covers adults
 18 to 64 only, so ranking on it alone pushes older neighborhoods down. The reviser may
-change only need and access settings, never pick a tract by its racial makeup. It gets at
-most two revisions, and the loop always ends on an audit, so no plan ships unchecked.
+change only need and access settings, never pick a tract by its racial makeup. A code
+gate, `revise_if_rejected`, lets the reviser run only after a REVISE, at most twice, and the
+loop always ends on an audit, so no plan ships unchecked.
 
 ## Who sees what
 
@@ -122,9 +123,9 @@ Parallel branches each write their own key, because branches share one state dic
 
 ```mermaid
 flowchart LR
-    browser(["Browser<br/>ADK web UI"])
-    subgraph run["Cloud Run · clinic-broker (us-east1, 1 instance, public link)"]
-        app["ADK 2.7 api_server with the web UI<br/>clinic_broker pipeline<br/>sessions and files kept in memory<br/>auth: the service's own account"]
+    browser(["Browser<br/>Clinic Broker page"])
+    subgraph run["Cloud Run · clinic-broker-ui (us-east1, 1 instance)"]
+        app["agent/main.py<br/>our page at / · ADK developer UI at /dev-ui/<br/>ADK 2.7 API · clinic_broker pipeline<br/>sessions and files kept in memory<br/>auth: the service's own account"]
     end
     gemini["Gemini 3.6 Flash<br/>Vertex AI · location global"]
     bq[("BigQuery · a4i_health<br/>challenge tables, US")]
@@ -137,9 +138,11 @@ flowchart LR
     class mcp audit
 ```
 
-Gemini 3.x answers only on the `global` location in the lab project, so the service sets it
-explicitly; the deploy tool would otherwise default to the region. One instance, because
-the web UI keeps sessions in memory and a second instance would not find them.
+The page and ADK's API are one server, so the page streams each agent's events from the
+same address and needs no separate backend. Gemini 3.x answers only on the `global`
+location in the lab project, so the service sets it explicitly. One instance, because
+sessions and saved files live in memory and a second instance would not find them. The
+original ADK-only deployment still runs as `clinic-broker`.
 
 ## The four questions judges ask
 

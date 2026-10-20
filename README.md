@@ -8,10 +8,11 @@ mobile clinic parks on next month's four Saturdays**, and the thing it knows tha
 spreadsheet does not is **which of its own numbers it can trust, at what scale, and whether
 the plan lands fairly on the people it is meant to reach.**
 
-**Try it:** https://clinic-broker-702160158477.us-east1.run.app/dev-ui/ → pick `clinic_broker`
-→ *"Plan next month's four Saturday stops for the van."* (two to five minutes). The State tab
-and event graph show the agents handing off; the Artifacts panel holds the printable flyer
-and the funder statement.
+**Try it:** https://clinic-broker-ui-702160158477.us-east1.run.app/ → pick a month → **Plan the
+month** (two to five minutes), or open https://clinic-broker-ui-702160158477.us-east1.run.app/#sample
+to replay a saved run instantly. You see the agents working live, a county map with the four
+stops, the equity audit, the printable flyer and the funder statement. ADK's developer view
+with the event graph is at `/dev-ui/`.
 
 **Full write-up:** [`agent/README.md`](agent/README.md): architecture, who sees what, the
 four judge questions, the audit numbers, the scale of every claim, and how to run it.
@@ -55,6 +56,8 @@ Cloud Run.
 | Path | What it is |
 |---|---|
 | [`agent/clinic_broker/`](agent/clinic_broker/) | The multi-agent pipeline described above |
+| [`agent/ui/`](agent/ui/) and [`agent/main.py`](agent/main.py) | The web interface and the server that hosts it with ADK's API |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Diagrams of how the agents communicate |
 | [`agent/agent.py`](agent/agent.py) | A separate single-agent coordinator from an earlier PR |
 | [`notebooks/`](notebooks/) | The organizers' data loader and explorer |
 | [`scripts/load.sh`](scripts/load.sh) | Headless data loader (needs bash 4; run it in Cloud Shell) |
