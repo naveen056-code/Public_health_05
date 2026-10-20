@@ -5,12 +5,17 @@
 thing it knows that a spreadsheet does not is **which of its own numbers it can trust, at
 what scale, and whether the plan lands fairly on the people it is meant to reach.**
 
-The audit and the neighborhood messages are not separate products. They are what make
-the siting plan honest, and each one is its own agent.
+Siting leads, and the other two tracks run behind it on the same plan, each as its own
+agent: **Accountability** (an equity audit, plus a statement for a funder or program
+director) and **Explanation** (a printable bilingual flyer and text messages for the
+neighborhood). They are what make the siting plan honest.
 
-**Live (ADK web UI):** https://clinic-broker-702160158477.us-east1.run.app/dev-ui/: pick
-`clinic_broker` and ask *"Plan next month's four Saturday stops for the van."* A run takes
-about two minutes. The **State** tab and the event graph show each agent's hand-off.
+**Live:** https://clinic-broker-ui-702160158477.us-east1.run.app/: pick a month and press
+**Plan the month** (two to five minutes), or add `#sample` to the link to replay a saved run
+instantly. The page shows the agents working live, the county map with the four stops
+numbered, the Saturday cards, and tabs for the equity audit, the printable flyer, the
+funder statement and the limits. ADK's developer UI, with the event graph and State tab,
+is still at `/dev-ui/` on the same service.
 
 ## What it produces: the Clinic Plan
 
@@ -23,8 +28,19 @@ about two minutes. The **State** tab and the event graph show each agent's hand-
 3. **Who this plan lands on.** The equity audit: plan vs. high-need tracts vs. county, on
    race and ethnicity the planner never saw, plus age 65+, limited English, disability and
    no-vehicle households. The audit result is reported whether it passes or not.
-4. **What we hand to the neighborhood.** English and Spanish text messages for each stop,
-   and a "why not us?" script for the closest neighborhood that did not get a Saturday.
+4. **What we hand to the neighborhood.** A printable flyer, one page per Saturday with
+   English above the fold and Spanish below; text messages in both languages; and a "why
+   not us?" script for the closest neighborhood that did not get a Saturday. The explainer
+   writes only the headline, invitation and message. The date, the free checks, the
+   follow-up clinic, its address and hours are filled in by code, and the time and parking
+   spot are left as blank lines for staff, so the model cannot get a fact wrong on paper.
+
+Plus, for the **Accountability track**: an **accountability statement** for a funder or
+program director: where the van goes and why, who the plan reaches (the audit's own
+table), how it was checked and what the audit changed, what a plan cannot show yet, and
+what to count on each Saturday (aggregate only) to prove the money went where the need was.
+It states plainly that four Saturdays reach about 6.5% of the people in the highest-need
+tracts.
 
 ## Architecture
 
@@ -38,13 +54,16 @@ clinic_plan (SequentialAgent)
 │     → state.plan, plan_stops, need_pool_geo_ids, plan_versions
 ├─ review_loop (LoopAgent, max 3 rounds; always ends on an audit)
 │   ├─ auditor (LlmAgent)                 tool: BigQuery managed MCP (execute_sql_readonly)
-│   │     reads plan_stops, plan, need_pool_geo_ids → state.audit_report, audit_verdict
+│   │     reads plan_stops, plan, need_pool_geo_ids
+│   │     → state.audit_report, audit_verdict, audit_table (captured from the MCP result)
 │   │     PASS ends the loop
 │   └─ revise_if_rejected → reviser (LlmAgent, same tools as planner)
 │         reads audit_report, plan, plan_params → state.plan, plan_stops (new version)
-├─ explainer (LlmAgent)                   no tools
-│     reads plan_stops, plan_runner_up → state.flyer
-└─ clinic_plan_report                     no model; assembles the four parts
+├─ write_outputs (ParallelAgent)          both read only the final plan
+│   ├─ explainer (LlmAgent, output_schema)    reads plan_stops, plan_runner_up → state.outreach
+│   └─ accountability_writer (LlmAgent)       reads computed facts + audit_table → state.accountability
+└─ clinic_plan_report                     no model; assembles the Clinic Plan and saves
+                                          flyers.html + accountability_statement.md as artifacts
 ```
 
 ### Who can see what (this is the design)
@@ -54,6 +73,7 @@ clinic_plan (SequentialAgent)
 | Planner / reviser | Our tools over the challenge tables (need, access, capacity) | Race or ethnicity: **no tool it holds can read them** |
 | Auditor | The plan's tract IDs and text; Census race and ethnicity via BigQuery MCP | The planner's reasoning (`include_contents="none"`), so it cannot be talked into defending the plan |
 | Explainer | The final stops and the runner-up | The analysis, the audit, the raw tables |
+| Accountability writer | Facts computed in code, and the audit's own equity table | The raw tables; it is told to add no number the facts do not contain |
 
 "The planner cannot see race" is enforced by the code, not by a sentence in a prompt: the
 planner's only route to data is [`tools.py`](clinic_broker/tools.py) →
@@ -65,13 +85,18 @@ only in [`audit.py`](clinic_broker/audit.py), and only the auditor holds the MCP
 1. **Delete any one agent and the answer gets worse.** Without the auditor, the
    uninsured-only plan below ships unchanged and under-reaches older adults. Without the
    explainer, the neighborhood gets a document written for a professional. Without the
-   planner, nothing produces the stops.
+   accountability writer, the funder gets an operational plan instead of an answer to
+   "did the money go where the need was". Without the planner, nothing produces the stops.
 2. **A state key written by one agent and read by another:** `plan_stops` is written by the
-   planner's `plan_saturdays` tool and read by the auditor (to build its Census query) and
-   the explainer. `audit_report` is written by the auditor and read by the reviser.
-3. **Two agents whose instructions conflict:** the planner must *hedge, cite and label
-   every number with its scale*; the explainer must be *warm, plain, sixth-grade, no
-   statistics, no hedging*, in English and Spanish. See [`prompts.py`](clinic_broker/prompts.py).
+   planner's `plan_saturdays` tool and read by the auditor (to build its Census query), the
+   explainer and the accountability writer. `audit_report` is written by the auditor and
+   read by the reviser; `audit_table` is captured from the auditor's MCP call and read by
+   the accountability writer.
+3. **Agents whose instructions conflict:** the planner must *hedge, cite and label every
+   number with its scale*; the explainer must be *warm, plain, sixth-grade, no statistics,
+   no hedging*, in English and Spanish; the accountability writer must be *formal, third
+   person, each figure once with its source, limits in their own section*. See
+   [`prompts.py`](clinic_broker/prompts.py) and [`accountability.py`](clinic_broker/accountability.py).
 4. **Where the system rejected its own first answer:** see the second run below.
 
 ## What "needs the van" means
@@ -163,23 +188,36 @@ pip install -r agent/clinic_broker/requirements.txt
 gcloud auth application-default login            # an account in the lab project
 cp agent/clinic_broker/.env.example agent/clinic_broker/.env   # set GOOGLE_CLOUD_PROJECT
 bash scripts/load.sh 13121                       # needs bash 4: run it in Cloud Shell
-cd agent && adk web .                            # http://127.0.0.1:8000
+cd agent && uvicorn main:app --port 8080         # our interface: http://127.0.0.1:8080
+                                                 # ADK's developer UI: /dev-ui/
 ```
 
 `GOOGLE_CLOUD_LOCATION` must be `global`: Gemini 3.x returns "model not found" on regional
 endpoints in the lab project. The `mcp` package must stay below 2.0 for ADK 2.7
 (`google-adk[mcp]==2.7.0` pins it).
 
-**Deploy** (from `agent/`):
+**Deploy** (from the repo root; builds [`agent/Dockerfile`](Dockerfile), which serves
+[`main.py`](main.py)):
 
 ```bash
-adk deploy cloud_run --project=$PROJECT --region=us-east1 --service_name=clinic-broker \
-  --with_ui clinic_broker -- --memory=1Gi --timeout=900 --max-instances=1 \
-  --set-env-vars=GOOGLE_CLOUD_LOCATION=global,GOOGLE_GENAI_USE_VERTEXAI=true
+gcloud run deploy clinic-broker-ui --source agent --project=$PROJECT --region=us-east1 \
+  --memory=1Gi --timeout=900 --max-instances=1 \
+  --set-env-vars=GOOGLE_GENAI_USE_VERTEXAI=true,GOOGLE_CLOUD_PROJECT=$PROJECT,GOOGLE_CLOUD_LOCATION=global
 ```
 
-`--set-env-vars` matters: the generated Dockerfile sets `GOOGLE_CLOUD_LOCATION` to the
-deploy region. `--max-instances=1` because the dev UI keeps sessions in memory.
+`GOOGLE_CLOUD_LOCATION=global` matters: Gemini 3.x is served only there in the lab
+project. `--max-instances=1` because sessions and artifacts are kept in memory. The
+original ADK-only deployment (`adk deploy cloud_run --with_ui`) is still running as the
+`clinic-broker` service.
+
+The interface lives in [`ui/`](ui/): plain HTML, CSS and JavaScript with no build step.
+It talks to ADK's own API on the same server (`/run_sse` to stream each agent's events,
+the session and artifact routes for the results) plus one route of ours, `/api/map`, for
+the need scores and clinic points. Tract boundaries are the Census Bureau's 2020 TIGERweb
+tracts (US Government work), saved in `ui/fulton_tracts_2020.geojson`; BigQuery's public
+tract tables are 2010 boundaries and match only 108 of Fulton's 326 tracts.
+`ui/sample_run.json` is a saved real run (the uninsured-only request), used by
+**Replay a saved run**.
 
 ## Files
 
@@ -190,7 +228,11 @@ deploy region. `--max-instances=1` because the dev UI keeps sessions in memory.
 | [`tools.py`](clinic_broker/tools.py) | Our function tools: `plan_saturdays`, `rank_tracts` |
 | [`audit.py`](clinic_broker/audit.py) | BigQuery MCP toolset, the Census audit query, verdict handling |
 | [`prompts.py`](clinic_broker/prompts.py) | Planner, reviser and explainer instructions |
-| [`workflow.py`](clinic_broker/workflow.py) | Model-free agents: evidence lookups, conditional reviser, report |
+| [`outreach.py`](clinic_broker/outreach.py) | The explainer's output schema and the printable bilingual flyer |
+| [`accountability.py`](clinic_broker/accountability.py) | Computed facts, the audit-table capture, and the accountability writer's instruction |
+| [`workflow.py`](clinic_broker/workflow.py) | Model-free agents: evidence lookups, conditional reviser, report and artifacts |
+| [`../main.py`](main.py) | The web server: ADK's API, our interface at `/`, the developer UI at `/dev-ui/`, and `/api/map` |
+| [`../ui/`](ui/) | The interface: `index.html`, `styles.css`, `app.js`, tract boundaries and the saved sample run |
 
 ---
 

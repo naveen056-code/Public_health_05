@@ -927,6 +927,12 @@ async def serve_ui():
     return FileResponse(UI_PATH)
 
 
+@app.get("/ui/fulton_tracts_2020.geojson")
+async def serve_tracts_geojson():
+    geojson_path = Path(__file__).parent / "agent" / "ui" / "fulton_tracts_2020.geojson"
+    return FileResponse(geojson_path, media_type="application/geo+json")
+
+
 @app.get("/api/map-data")
 async def get_map_data():
     data = load_county_data()

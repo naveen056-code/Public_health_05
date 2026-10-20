@@ -13,6 +13,7 @@ from __future__ import annotations
 import calendar
 import datetime as dt
 import math
+import re
 from functools import lru_cache
 
 from google.cloud import bigquery
@@ -161,6 +162,19 @@ def select_stops(ranked: list[dict], *, stops: int = 4, min_spacing_km: float = 
     return chosen
 
 
+def display_name(name: str) -> str:
+    """CMS publishes many names in capitals with a corporate suffix; a flyer should not
+    shout "THE FAMILY HEALTH CENTERS OF GEORGIA, INC." at a neighbor."""
+    if not name:
+        return ""
+    n = re.sub(r",?\s+(INC|LLC|CORP|CORPORATION)\.?$", "", name.strip(), flags=re.IGNORECASE)
+    if n.isupper():
+        small = {"of", "and", "the", "at", "for", "in"}
+        words = n.lower().split()
+        n = " ".join(w if i and w in small else w.capitalize() for i, w in enumerate(words))
+    return n
+
+
 def nearest_safety_net(geo_ids: list[str]) -> dict[str, dict]:
     """Where the van should send people for follow-up: the nearest site that will see
     somebody uninsured, with its weekly hours, since a site open eight hours a week and
@@ -181,6 +195,7 @@ def nearest_safety_net(geo_ids: list[str]) -> dict[str, dict]:
     out = {}
     for r in rows:
         s = dict(r["site"])
+        s["display_name"] = display_name(s["name"])
         s["km"] = _r(s["km"])
         s["hours_per_week"] = _r(s["hours_per_week"], 0)
         s["scale"] = "facility point · federal sites only (HRSA / CMS)"
@@ -197,6 +212,31 @@ def saturdays(month: str | None = None) -> list[str]:
         year, mon = (today.year + 1, 1) if today.month == 12 else (today.year, today.month + 1)
     days = calendar.Calendar().itermonthdates(year, mon)
     return [d.isoformat() for d in days if d.month == mon and d.weekday() == calendar.SATURDAY]
+
+
+# ---------------------------------------------------------------------------
+# Map layers for the web interface
+# ---------------------------------------------------------------------------
+
+@lru_cache(maxsize=1)
+def map_layers() -> dict:
+    """Every tract's default need score and the county's care sites, for the map. Cached:
+    the tables only change when someone reloads the county."""
+    tracts = [{
+        "geo_id": r["geo_id"], "need_rank": r["need_rank"], "need_score": _r(r["need_score"], 3),
+        "population": int(r["total_pop"]), "pct_uninsured": _r(r["pct_uninsured"], 1),
+        "pct_no_vehicle": _r(r["pct_no_vehicle"], 1), "km_to_safety_net": _r(r["km_to_safety_net"]),
+        "lat": r["latitude"], "lon": r["longitude"],
+    } for r in ranked_tracts()]
+    sites = _rows(f"""
+      SELECT FACILITY_NM AS name, site_kind AS kind, latitude AS lat, longitude AS lon,
+             TOT_OPER_HR_PER_WEEK AS hours_per_week
+      FROM {config.table('care_sites')} WHERE latitude IS NOT NULL""")
+    for s in sites:
+        s["name"] = display_name(s["name"])
+        s["safety_net"] = s["kind"] in SAFETY_NET_KINDS
+    return {"county": config.COUNTY_NAME, "tracts_ranked": len(tracts),
+            "tracts": tracts, "sites": sites}
 
 
 # ---------------------------------------------------------------------------
