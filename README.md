@@ -9,8 +9,9 @@ spreadsheet does not is **which of its own numbers it can trust, at what scale, 
 the plan lands fairly on the people it is meant to reach.**
 
 **Try it live:**
-- **Cloud Run Deployment:** [https://clinic-broker-ui-702160158477.us-east1.run.app/](https://clinic-broker-ui-702160158477.us-east1.run.app/)
-- **Instant Demo (Saved Replay with Map Animations):** [https://clinic-broker-ui-702160158477.us-east1.run.app/#sample](https://clinic-broker-ui-702160158477.us-east1.run.app/#sample)
+- **Feature Deployment (Dynamic Leaflet Map & Animations):** [https://clinic-broker-ui-naveen-702160158477.us-east1.run.app/](https://clinic-broker-ui-naveen-702160158477.us-east1.run.app/)
+- **Instant Demo (Saved Replay with Animations):** [https://clinic-broker-ui-naveen-702160158477.us-east1.run.app/#sample](https://clinic-broker-ui-naveen-702160158477.us-east1.run.app/#sample)
+- **Base Cloud Run Service:** [https://clinic-broker-ui-702160158477.us-east1.run.app/](https://clinic-broker-ui-702160158477.us-east1.run.app/)
 - **Local Server (when running locally):** [http://localhost:8080](http://localhost:8080) (or [http://localhost:8080/#sample](http://localhost:8080/#sample))
 - **ADK Developer Event Graph:** `/dev-ui/` on whichever host is running.
 

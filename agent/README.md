@@ -10,8 +10,9 @@ agent: **Accountability** (an equity audit, plus a statement for a funder or pro
 director) and **Explanation** (a printable bilingual flyer and text messages for the
 neighborhood). They are what make the siting plan honest.
 
-**Live Deployment:** [https://clinic-broker-ui-702160158477.us-east1.run.app/](https://clinic-broker-ui-702160158477.us-east1.run.app/)  
-**Instant Demo (Saved Replay):** [https://clinic-broker-ui-702160158477.us-east1.run.app/#sample](https://clinic-broker-ui-702160158477.us-east1.run.app/#sample)  
+**Live Feature Deployment:** [https://clinic-broker-ui-naveen-702160158477.us-east1.run.app/](https://clinic-broker-ui-naveen-702160158477.us-east1.run.app/)  
+**Instant Demo (Saved Replay):** [https://clinic-broker-ui-naveen-702160158477.us-east1.run.app/#sample](https://clinic-broker-ui-naveen-702160158477.us-east1.run.app/#sample)  
+**Base Deployment:** [https://clinic-broker-ui-702160158477.us-east1.run.app/](https://clinic-broker-ui-702160158477.us-east1.run.app/)  
 **Local Test Link:** [http://localhost:8080](http://localhost:8080) (or [http://localhost:8080/#sample](http://localhost:8080/#sample))
 
 Pick a month and press **Plan the month** (two to five minutes), or load `#sample` to replay a saved run instantly. The UI features a dynamic, zoomable Leaflet county map with animated route flow, an animated Doctor Van marker driving between stops with speech bubbles, live metric switching (Need Score, Uninsured %, No Vehicle %, Clinic Distance), Saturday detail cards, and full tabs for the equity audit, printable bilingual flyer, funder statement, and data limits. ADK's developer UI with the event graph is at `/dev-ui/`.
