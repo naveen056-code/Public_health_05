@@ -10,10 +10,12 @@ agent: **Accountability** (an equity audit, plus a statement for a funder or pro
 director) and **Explanation** (a printable bilingual flyer and text messages for the
 neighborhood). They are what make the siting plan honest.
 
-**Live (ADK web UI):** https://clinic-broker-702160158477.us-east1.run.app/dev-ui/: pick
-`clinic_broker` and ask *"Plan next month's four Saturday stops for the van."* A run takes
-two to five minutes. The **State** tab and the event graph show each agent's hand-off; the
-**Artifacts** panel holds `flyers.html` (print it) and `accountability_statement.md`.
+**Live:** https://clinic-broker-ui-702160158477.us-east1.run.app/: pick a month and press
+**Plan the month** (two to five minutes), or add `#sample` to the link to replay a saved run
+instantly. The page shows the agents working live, the county map with the four stops
+numbered, the Saturday cards, and tabs for the equity audit, the printable flyer, the
+funder statement and the limits. ADK's developer UI, with the event graph and State tab,
+is still at `/dev-ui/` on the same service.
 
 ## What it produces: the Clinic Plan
 
@@ -186,23 +188,36 @@ pip install -r agent/clinic_broker/requirements.txt
 gcloud auth application-default login            # an account in the lab project
 cp agent/clinic_broker/.env.example agent/clinic_broker/.env   # set GOOGLE_CLOUD_PROJECT
 bash scripts/load.sh 13121                       # needs bash 4: run it in Cloud Shell
-cd agent && adk web .                            # http://127.0.0.1:8000
+cd agent && uvicorn main:app --port 8080         # our interface: http://127.0.0.1:8080
+                                                 # ADK's developer UI: /dev-ui/
 ```
 
 `GOOGLE_CLOUD_LOCATION` must be `global`: Gemini 3.x returns "model not found" on regional
 endpoints in the lab project. The `mcp` package must stay below 2.0 for ADK 2.7
 (`google-adk[mcp]==2.7.0` pins it).
 
-**Deploy** (from `agent/`):
+**Deploy** (from the repo root; builds [`agent/Dockerfile`](Dockerfile), which serves
+[`main.py`](main.py)):
 
 ```bash
-adk deploy cloud_run --project=$PROJECT --region=us-east1 --service_name=clinic-broker \
-  --with_ui clinic_broker -- --memory=1Gi --timeout=900 --max-instances=1 \
-  --set-env-vars=GOOGLE_CLOUD_LOCATION=global,GOOGLE_GENAI_USE_VERTEXAI=true
+gcloud run deploy clinic-broker-ui --source agent --project=$PROJECT --region=us-east1 \
+  --memory=1Gi --timeout=900 --max-instances=1 \
+  --set-env-vars=GOOGLE_GENAI_USE_VERTEXAI=true,GOOGLE_CLOUD_PROJECT=$PROJECT,GOOGLE_CLOUD_LOCATION=global
 ```
 
-`--set-env-vars` matters: the generated Dockerfile sets `GOOGLE_CLOUD_LOCATION` to the
-deploy region. `--max-instances=1` because the dev UI keeps sessions in memory.
+`GOOGLE_CLOUD_LOCATION=global` matters: Gemini 3.x is served only there in the lab
+project. `--max-instances=1` because sessions and artifacts are kept in memory. The
+original ADK-only deployment (`adk deploy cloud_run --with_ui`) is still running as the
+`clinic-broker` service.
+
+The interface lives in [`ui/`](ui/): plain HTML, CSS and JavaScript with no build step.
+It talks to ADK's own API on the same server (`/run_sse` to stream each agent's events,
+the session and artifact routes for the results) plus one route of ours, `/api/map`, for
+the need scores and clinic points. Tract boundaries are the Census Bureau's 2020 TIGERweb
+tracts (US Government work), saved in `ui/fulton_tracts_2020.geojson`; BigQuery's public
+tract tables are 2010 boundaries and match only 108 of Fulton's 326 tracts.
+`ui/sample_run.json` is a saved real run (the uninsured-only request), used by
+**Replay a saved run**.
 
 ## Files
 
@@ -216,6 +231,8 @@ deploy region. `--max-instances=1` because the dev UI keeps sessions in memory.
 | [`outreach.py`](clinic_broker/outreach.py) | The explainer's output schema and the printable bilingual flyer |
 | [`accountability.py`](clinic_broker/accountability.py) | Computed facts, the audit-table capture, and the accountability writer's instruction |
 | [`workflow.py`](clinic_broker/workflow.py) | Model-free agents: evidence lookups, conditional reviser, report and artifacts |
+| [`../main.py`](main.py) | The web server: ADK's API, our interface at `/`, the developer UI at `/dev-ui/`, and `/api/map` |
+| [`../ui/`](ui/) | The interface: `index.html`, `styles.css`, `app.js`, tract boundaries and the saved sample run |
 
 ---
 
