@@ -46,10 +46,30 @@ let activeStopIndex = -1;
 let lastStopsData = [];
 
 const METRIC_CONFIG = {
-  need_score: { label: "Need score, low → high", unit: "" },
-  pct_uninsured: { label: "Uninsured rate (18-64), low → high", unit: "%" },
-  pct_no_vehicle: { label: "Households without a vehicle, low → high", unit: "%" },
-  km_to_safety_net: { label: "Distance to safety-net clinic, low → high", unit: " km" },
+  need_score: {
+    label: "Need score, low → high",
+    name: "Need Score",
+    unit: "",
+    desc: "Composite vulnerability ranking combining lack of insurance, lack of vehicles, and clinic distance to prioritize overall need.",
+  },
+  pct_uninsured: {
+    label: "Uninsured rate (18-64), low → high",
+    name: "Uninsured Rate",
+    unit: "%",
+    desc: "Percentage of adults aged 18–64 without health insurance (CDC PLACES). Darker tracts indicate higher uninsured rates.",
+  },
+  pct_no_vehicle: {
+    label: "Households without a vehicle, low → high",
+    name: "No Vehicle %",
+    unit: "%",
+    desc: "Percentage of households without an automobile (Census ACS). Highlights neighborhoods with severe medical transit barriers.",
+  },
+  km_to_safety_net: {
+    label: "Distance to safety-net clinic, low → high",
+    name: "Distance to Clinic",
+    unit: " km",
+    desc: "Straight-line distance (km) to the nearest sliding-scale safety-net health center (HRSA FQHC). Darker tracts are farther from care.",
+  },
 };
 
 const COLOR_RAMP = ["#e6efec", "#bcd9d2", "#82bcb0", "#3f9586", "#0d6b61"];
@@ -202,6 +222,8 @@ function updateLegendLabel(metricKey) {
   const cfg = METRIC_CONFIG[metricKey] || METRIC_CONFIG.need_score;
   const lbl = $("legend-label");
   if (lbl) lbl.textContent = cfg.label;
+  const expl = $("metric-explainer");
+  if (expl) expl.innerHTML = `<b>${cfg.name}:</b> ${cfg.desc}`;
 }
 
 function renderTractPolygons(geo, metricKey) {
@@ -252,17 +274,41 @@ function renderTractPolygons(geo, metricKey) {
         },
       });
 
+      const activeCfg = METRIC_CONFIG[metricKey] || METRIC_CONFIG.need_score;
+      const activeVal = t ? (t[metricKey] != null ? `${t[metricKey]}${activeCfg.unit}` : "N/A") : "N/A";
+
       const tooltipContent = t
         ? `<div class="leaflet-tooltip-dark">
              <b>Tract ${id}</b>
+             <div class="tt-row">${activeCfg.name}: <b style="color: #34d399;">${activeVal}</b></div>
              <div class="tt-row">Need rank: <b>#${t.need_rank}</b> of ${map.ranked} (${fmt(t.population)} people)</div>
-             <div class="tt-row">${t.pct_uninsured}% adults uninsured</div>
-             <div class="tt-row">${t.pct_no_vehicle}% households without car</div>
-             <div class="tt-row">${t.km_to_safety_net} km to safety-net clinic</div>
+             <div class="tt-row">${t.pct_uninsured}% uninsured · ${t.pct_no_vehicle}% no vehicle</div>
+             <div class="tt-row">${t.km_to_safety_net} km to clinic</div>
            </div>`
         : `<div class="leaflet-tooltip-dark"><b>Tract ${id}</b><div class="tt-sub">Under 500 people: not ranked</div></div>`;
 
       layer.bindTooltip(tooltipContent, { sticky: true, className: "leaflet-tooltip-pane" });
+
+      const popupContent = t
+        ? `<div style="font-family: var(--body, sans-serif); font-size: 12px; color: #0f172a; line-height: 1.45; min-width: 220px; padding: 2px;">
+             <div style="display: flex; justify-content: space-between; align-items: baseline;">
+               <b style="font-size: 14px; color: #0284c7;">Tract ${id}</b>
+               <span style="font-size: 11px; font-weight: 600; color: #475569;">Rank #${t.need_rank} of ${map.ranked}</span>
+             </div>
+             <div style="font-size: 11px; color: #64748b; margin-top: 2px; margin-bottom: 8px;">Population: <b>${fmt(t.population)}</b> people</div>
+             <div style="padding: 6px 10px; border-radius: 6px; background: #ecfdf5; border: 1px solid #a7f3d0; margin-bottom: 8px;">
+               <div style="font-size: 10px; font-weight: 700; color: #065f46; letter-spacing: .04em; text-transform: uppercase;">Selected Metric</div>
+               <div style="font-size: 14px; font-weight: 700; color: #047857; margin-top: 2px;">${activeCfg.name}: ${activeVal}</div>
+             </div>
+             <table style="width: 100%; font-size: 11.5px; border-collapse: collapse; margin-top: 4px;">
+               <tr style="border-bottom: 1px solid #e2e8f0;"><td style="padding: 3px 0; color: #64748b;">Uninsured (18-64):</td><td style="padding: 3px 0; text-align: right; font-weight: 600;">${t.pct_uninsured}%</td></tr>
+               <tr style="border-bottom: 1px solid #e2e8f0;"><td style="padding: 3px 0; color: #64748b;">Households w/o car:</td><td style="padding: 3px 0; text-align: right; font-weight: 600;">${t.pct_no_vehicle}%</td></tr>
+               <tr><td style="padding: 3px 0; color: #64748b;">Nearest Safety-Net:</td><td style="padding: 3px 0; text-align: right; font-weight: 600;">${t.km_to_safety_net} km</td></tr>
+             </table>
+           </div>`
+        : `<div style="font-size: 12px; color: #0f172a;"><b>Tract ${id}</b><br><span style="color: #64748b;">Under 500 residents: not ranked</span></div>`;
+
+      layer.bindPopup(popupContent);
     },
   }).addTo(leafletMap);
 }
