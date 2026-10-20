@@ -10,12 +10,11 @@ agent: **Accountability** (an equity audit, plus a statement for a funder or pro
 director) and **Explanation** (a printable bilingual flyer and text messages for the
 neighborhood). They are what make the siting plan honest.
 
-**Live:** https://clinic-broker-ui-702160158477.us-east1.run.app/: pick a month and press
-**Plan the month** (two to five minutes), or add `#sample` to the link to replay a saved run
-instantly. The page shows the agents working live, the county map with the four stops
-numbered, the Saturday cards, and tabs for the equity audit, the printable flyer, the
-funder statement and the limits. ADK's developer UI, with the event graph and State tab,
-is still at `/dev-ui/` on the same service.
+**Live Deployment:** [https://clinic-broker-ui-702160158477.us-east1.run.app/](https://clinic-broker-ui-702160158477.us-east1.run.app/)  
+**Instant Demo (Saved Replay):** [https://clinic-broker-ui-702160158477.us-east1.run.app/#sample](https://clinic-broker-ui-702160158477.us-east1.run.app/#sample)  
+**Local Test Link:** [http://localhost:8080](http://localhost:8080) (or [http://localhost:8080/#sample](http://localhost:8080/#sample))
+
+Pick a month and press **Plan the month** (two to five minutes), or load `#sample` to replay a saved run instantly. The UI features a dynamic, zoomable Leaflet county map with animated route flow, an animated Doctor Van marker driving between stops with speech bubbles, live metric switching (Need Score, Uninsured %, No Vehicle %, Clinic Distance), Saturday detail cards, and full tabs for the equity audit, printable bilingual flyer, funder statement, and data limits. ADK's developer UI with the event graph is at `/dev-ui/`.
 
 ## What it produces: the Clinic Plan
 
@@ -183,13 +182,19 @@ disagreement with the audit* for the outreach lead to decide.
 ## Run it
 
 ```bash
-python3.12 -m venv .venv && source .venv/bin/activate
-pip install -r agent/clinic_broker/requirements.txt
-gcloud auth application-default login            # an account in the lab project
+# Setup environment & install dependencies
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+
+# Run automated tests
+PYTHONPATH=agent pytest tests -v
+
+# Run locally
+gcloud auth application-default login            # if querying live BigQuery
 cp agent/clinic_broker/.env.example agent/clinic_broker/.env   # set GOOGLE_CLOUD_PROJECT
-bash scripts/load.sh 13121                       # needs bash 4: run it in Cloud Shell
-cd agent && uvicorn main:app --port 8080         # our interface: http://127.0.0.1:8080
-                                                 # ADK's developer UI: /dev-ui/
+PYTHONPATH=agent uvicorn agent.main:app --host 127.0.0.1 --port 8080
+# Interface: http://127.0.0.1:8080 (or http://127.0.0.1:8080/#sample)
+# ADK developer UI: http://127.0.0.1:8080/dev-ui/
 ```
 
 `GOOGLE_CLOUD_LOCATION` must be `global`: Gemini 3.x returns "model not found" on regional

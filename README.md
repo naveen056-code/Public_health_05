@@ -8,11 +8,79 @@ mobile clinic parks on next month's four Saturdays**, and the thing it knows tha
 spreadsheet does not is **which of its own numbers it can trust, at what scale, and whether
 the plan lands fairly on the people it is meant to reach.**
 
-**Try it:** https://clinic-broker-ui-702160158477.us-east1.run.app/ → pick a month → **Plan the
-month** (two to five minutes), or open https://clinic-broker-ui-702160158477.us-east1.run.app/#sample
-to replay a saved run instantly. You see the agents working live, a county map with the four
-stops, the equity audit, the printable flyer and the funder statement. ADK's developer view
-with the event graph is at `/dev-ui/`.
+**Try it live:**
+- **Cloud Run Deployment:** [https://clinic-broker-ui-702160158477.us-east1.run.app/](https://clinic-broker-ui-702160158477.us-east1.run.app/)
+- **Instant Demo (Saved Replay with Map Animations):** [https://clinic-broker-ui-702160158477.us-east1.run.app/#sample](https://clinic-broker-ui-702160158477.us-east1.run.app/#sample)
+- **Local Server (when running locally):** [http://localhost:8080](http://localhost:8080) (or [http://localhost:8080/#sample](http://localhost:8080/#sample))
+- **ADK Developer Event Graph:** `/dev-ui/` on whichever host is running.
+
+---
+
+## Quick Start: How to Run Locally
+
+### 1. Install Dependencies
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+### 2. Configure Environment (Optional for Live BigQuery / ADK)
+```bash
+cp agent/clinic_broker/.env.example agent/clinic_broker/.env
+# Set GOOGLE_CLOUD_PROJECT in agent/clinic_broker/.env if querying live BigQuery
+gcloud auth application-default login
+```
+
+### 3. Launch the Web Server
+```bash
+PYTHONPATH=agent python3 -m uvicorn agent.main:app --host 127.0.0.1 --port 8080
+```
+Open **[http://localhost:8080](http://localhost:8080)** in your browser!
+
+### 4. Run the Automated Test Suite
+```bash
+PYTHONPATH=agent python3 -m pytest tests -v
+```
+
+---
+
+## How to Use the Application
+
+### 1. Instant Demo & Route Replay (`#sample`)
+- Click **"Replay a saved run"** (or append `#sample` to the URL).
+- The pipeline reloads the full multi-agent decision run instantly, demonstrating:
+  - **Animated "Doctor Van"**: A mobile clinic van animates along the route between Saturday stops with a radar pulse and speech bubble detailing the stop, tract rank, and referral clinic.
+  - **Flowing Route Line**: An emerald dash-animated route connecting Fulton County stops in sequence.
+  - **Tour Route Button**: Click **`🚐 Tour Route`** in the map header to smoothly pan and watch the van tour all stops in order.
+
+### 2. Interactive Zoomable Map (Leaflet.js)
+- **Pan & Zoom**: Use your mouse scroll wheel, trackpad pinch, or double-click to explore Fulton County census tracts and nearby safety-net clinics (`✚`).
+- **Reset Camera**: Click **`Reset View ⟲`** anytime to re-center the map on the entire county.
+- **Two-Way Card Interaction**:
+  - Clicking any **Saturday Stop Card** in the sidebar flies the camera to that tract and drives the Doctor Van there.
+  - Clicking a **Map Marker** on the map highlights the corresponding Saturday stop card in the sidebar.
+
+### 3. Metric Layer Switcher
+Switch between public health equity indicators at the top of the map:
+- **`Need Score`**: Composite public health vulnerability score.
+- **`Uninsured %`**: Uninsured adult rate (ages 18–64).
+- **`No Vehicle %`**: Households without vehicle access.
+- **`Clinic Distance`**: Straight-line distance (km) to the nearest safety-net clinic.
+The choropleth quintile polygons will dynamically re-color in real time.
+
+### 4. Live Multi-Agent Planning
+- Pick an upcoming month from the dropdown.
+- (Optional) Enter custom guidance in the request box (e.g., *"Focus primarily on uninsured adults"*).
+- Click **`Plan the month`** (takes 2–4 minutes).
+- Watch the live **Agents at work** progress bar as each agent (Need Lookup, Context Lookup, Capacity Lookup, Planner, Equity Auditor, and Reviser) executes and streams decisions via Server-Sent Events (SSE).
+
+### 5. Reviewing the Decision Artifacts
+- **Equity Audit Tab**: Independent audit comparing the selected stops against the high-need pool and whole county on race, ethnicity, age 65+, English proficiency, and disability.
+- **Flyer Tab**: Ready-to-print bilingual flyer (English and Spanish) with blank lines for staff to write in parking spots and times without model hallucinations.
+- **Accountability Statement Tab**: Formal report prepared for program directors and grant funders detailing where the van goes and how the plan was checked.
+- **Data Limits Tab**: Candid boundaries on data resolution (e.g., air quality 12 km grid vs. tract level).
+
+---
 
 **Full write-up:** [`agent/README.md`](agent/README.md): architecture, who sees what, the
 four judge questions, the audit numbers, the scale of every claim, and how to run it.
