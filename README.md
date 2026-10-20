@@ -34,6 +34,7 @@ four judge questions, the audit numbers, the scale of every claim, and how to ru
 
 | Agent | Job | Sees | Never sees |
 |---|---|---|---|
+| Request reviewer | Checks the outreach lead's request against the guidelines: followed, adjusted or not followed, with a plain reason and the settings to use | The request text | Any data |
 | Planner | Ranks tracts by need and picks four spaced-out Saturdays, using our `plan_saturdays` tool | Need, access and capacity tables | Race or ethnicity: no tool it holds can read them |
 | Auditor | Checks who the plan lands on and every claim's scale; PASS or REVISE | Census race and ethnicity, via **BigQuery's managed MCP server** | The planner's reasoning |
 | Reviser | Fixes a rejected plan, with need-based changes only, and says up front if it overrode the request | The audit and the plan | Race or ethnicity |

@@ -151,7 +151,7 @@ let timerHandle = null;
 
 function resetStrip() {
   steps = [
-    { key: "evidence", kind: "par", who: ["need_lookup", "context_lookup", "capacity_lookup"], what: "3 lookups in parallel", done: new Set() },
+    { key: "evidence", kind: "par", who: ["need_lookup", "context_lookup", "capacity_lookup", "request_reviewer"], what: "3 lookups + request review, in parallel", done: new Set() },
     { key: "planner", who: "planner", what: "picks 4 Saturdays" },
     { key: "audit-1", who: "auditor", what: "round 1 · equity + evidence", auditor: true },
     { key: "outputs", kind: "par", who: ["explainer", "accountability_writer"], what: "written in parallel", done: new Set() },
@@ -196,10 +196,9 @@ function onEvent(ev) {
   const parts = ev.content?.parts || [];
   const calls = parts.filter((p) => p.functionCall).map((p) => p.functionCall.name);
   if (!author || author === "user") return;
-  if (delta.request_flag) $("flag").hidden = false;
+  if ("request_review" in delta) showReview(delta.request_review);
   if (calls.length) {
-    const what = { flag_request: "flagged the request: it goes against the race guideline",
-      plan_saturdays: "running plan_saturdays (our tool)", rank_tracts: "running rank_tracts (our tool)",
+    const what = { plan_saturdays: "running plan_saturdays (our tool)", rank_tracts: "running rank_tracts (our tool)",
       execute_sql_readonly: "querying Census race and ethnicity through BigQuery's MCP server" }[calls[0]] || calls[0];
     $("activity").textContent = `${author} · ${what}`;
   }
@@ -209,6 +208,7 @@ function onEvent(ev) {
 
   if (step.kind === "par") {
     const key = { need_lookup: "evidence_need", context_lookup: "evidence_context", capacity_lookup: "evidence_capacity",
+      request_reviewer: "request_review",
       explainer: "outreach", accountability_writer: "accountability" }[author];
     if (key in delta) step.done.add(author);
     if (step.done.size === step.who.length) finish(step);
@@ -258,7 +258,7 @@ async function run(e) {
   const text = `Plan the four Saturdays of ${monthLabel(month)} (month ${month}).${extra ? " " + extra : ""}`;
   setBusy(true);
   resetStrip();
-  $("flag").hidden = true;
+  $("review").hidden = true;
   steps[0].state = "running"; renderStrip();
   $("status").textContent = `Planning ${monthLabel(month)}…`;
   $("activity").textContent = "";
@@ -356,6 +356,7 @@ async function replaySample() {
     // Replay the order the agents actually ran in, quickly.
     const script = [
       ["need_lookup", { evidence_need: 1 }], ["context_lookup", { evidence_context: 1 }], ["capacity_lookup", { evidence_capacity: 1 }],
+      ["request_reviewer", { request_review: s.request_review || null }],
       ["planner", { plan: 1 }],
     ];
     (s.audit_history || []).forEach((a, i, all) => {
@@ -390,7 +391,8 @@ function render(state, flyerHtml) {
 
   drawStops(stops, rejected);
   renderCards(stops, state.plan_runner_up);
-  $("flag").hidden = !state.request_flag;
+  showReview(state.request_review);
+  renderSettings(state.plan_params);
 
   const v = $("verdict");
   v.hidden = !state.audit_verdict;
@@ -448,6 +450,44 @@ function renderCards(stops, runner) {
   if (runner) {
     rn.replaceChildren("Closest miss: tract ", el("b", null, runner.geo_id), ` (need rank ${runner.need_rank}), ${runner.why_not || ""}.`);
   }
+}
+
+// ---------------------------------------------------------------------------
+// The request review and the settings the plan actually used
+// ---------------------------------------------------------------------------
+const VERDICT = {
+  not_followed: "⚠ Request not followed",
+  adjusted: "Request adjusted",
+  followed: "✓ Request followed",
+};
+
+function showReview(r) {
+  const box = $("review");
+  if (!r || !VERDICT[r.verdict]) { box.hidden = true; return; }
+  box.className = `notice review ${r.verdict}`;
+  $("review-k").textContent = VERDICT[r.verdict];
+  $("review-msg").textContent = r.message || "";
+  $("review-g").textContent = r.guideline ? `Guideline: ${r.guideline}` : "";
+  box.hidden = false;
+}
+
+const STANDARD = { uninsured: 0.30, distance: 0.25, no_vehicle: 0.20, chronic: 0.15, no_checkup: 0.10,
+  seniors: 0, mobility: 0, limited_english: 0 };
+const LABEL = { uninsured: "uninsured", distance: "distance to a clinic", no_vehicle: "no car", chronic: "diabetes + blood pressure",
+  no_checkup: "missed checkups", seniors: "older adults (65+)", mobility: "mobility difficulty", limited_english: "limited English" };
+
+function renderSettings(p) {
+  const box = $("settings");
+  if (!p) { box.hidden = true; return; }
+  const changes = Object.entries(p.weights || {})
+    .filter(([k, v]) => Math.abs(Number(v) - (STANDARD[k] ?? 0)) > 1e-9)
+    .map(([k, v]) => `${LABEL[k] || k} ${Number(v).toFixed(2)} (standard ${(STANDARD[k] ?? 0).toFixed(2)})`);
+  if (p.min_spacing_km !== 5) changes.push(`stops ${p.min_spacing_km} km apart (standard 5)`);
+  if (p.min_km_to_safety_net !== 3) changes.push(`skip areas within ${p.min_km_to_safety_net} km of a clinic (standard 3)`);
+  if ((p.exclude_geo_ids || []).length) changes.push(`left out: ${p.exclude_geo_ids.join(", ")}`);
+  if ((p.include_geo_ids || []).length) changes.push(`fixed stops: ${p.include_geo_ids.join(", ")}`);
+  box.replaceChildren(el("b", null, "Settings used: "), changes.length ? changes.join(" · ") : "standard settings");
+  box.hidden = false;
 }
 
 const GROUPS = [

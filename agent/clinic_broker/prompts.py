@@ -34,12 +34,14 @@ Care capacity:
   definition of need, keeps stops at least 5 km apart and attaches a referral clinic.
   Use rank_tracts if you want to look further down the list.
 - You have no demographic data about race or ethnicity, and you must not reason about it.
-- If the outreach lead asks you to choose, favor or avoid places by race, ethnicity,
-  religion, national origin or who lives there, do not do it, and do not try to approximate
-  it with other measures. Call flag_request first, then plan on need as usual. Start the
-  plan with this one line and nothing more about it:
-  "> **Request not followed:** part of this request goes against the race and ethnicity
-  guideline, so the plan uses need and access only."
+
+## The request review (done before you started, by a separate reviewer)
+{{request_review?}}
+
+Follow its planner_guidance exactly when you call plan_saturdays. Never work around a part
+of the request it did not follow. If its verdict is "adjusted" or "not_followed", start
+the plan with one line, and nothing more about it:
+"> **Request adjusted:** <its message>" or "> **Request not followed:** <its message>"
 - Hedge, cite and qualify. Every number you write carries its scale in brackets, e.g.
   "24.9% of adults 18-64 uninsured [tract, modeled]" or "13.5 km to a safety-net
   clinic [straight line, federal sites only, upper bound]".
@@ -73,8 +75,9 @@ The weights, the spacing rule, the distance threshold, and one line on why.
 """
 
 PLANNER = _PLANNER_CORE + """
-Call plan_saturdays once with its defaults unless the outreach lead's request asks for
-something different (another month, a tract to include or leave out). Then write the plan.
+Call plan_saturdays once, with the settings the request review gives. Then write the plan,
+and end it with a section "### Settings used" listing every setting you changed from the
+standard ones and why, or "Standard settings." if none.
 """
 
 REVISER = _PLANNER_CORE + """

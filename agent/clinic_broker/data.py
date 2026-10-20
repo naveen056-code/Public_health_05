@@ -28,6 +28,8 @@ SCALES = {
     "pct_checkup": "tract · modeled estimate (CDC PLACES); low is bad",
     "pct_no_vehicle": "tract · survey estimate (CDC SVI / ACS)",
     "pct_limited_english": "tract · survey estimate (CDC SVI / ACS)",
+    "pct_age_65_plus": "tract · survey estimate (CDC SVI / ACS)",
+    "pct_mobility_difficulty": "tract · modeled estimate (CDC PLACES)",
     "km_to_safety_net": (
         "tract centre → federal safety-net site · straight line, county sites only, "
         "an upper bound (free and county clinics are not in any federal list)"
@@ -46,6 +48,11 @@ DEFAULT_WEIGHTS = {
     "no_vehicle": 0.20,
     "chronic": 0.15,
     "no_checkup": 0.10,
+    # Off by default. They exist so a request like "prioritize older adults" has a lever
+    # the planner can pull and the outreach lead can see, instead of being ignored.
+    "seniors": 0.0,
+    "mobility": 0.0,
+    "limited_english": 0.0,
 }
 
 SAFETY_NET_KINDS = ("FQHC", "Health Center site")
@@ -77,6 +84,7 @@ _RANK_SQL = """
 WITH b AS (
   SELECT b.geo_id, b.total_pop, b.pct_uninsured, b.pct_no_vehicle, b.pct_checkup,
          b.pct_diabetes, b.pct_high_bp, b.pct_limited_english, b.latitude, b.longitude,
+         b.pct_age_65_plus, b.pct_mobility_difficulty,
          a.km_to_any_care, a.km_to_safety_net, a.extra_km_if_uninsured
   FROM {burden} b JOIN {access} a USING (geo_id)
   WHERE b.total_pop >= @min_population
@@ -89,13 +97,18 @@ r AS (
     PERCENT_RANK() OVER (ORDER BY pct_no_vehicle)     AS r_no_vehicle,
     (PERCENT_RANK() OVER (ORDER BY pct_diabetes)
        + PERCENT_RANK() OVER (ORDER BY pct_high_bp)) / 2 AS r_chronic,
-    1 - PERCENT_RANK() OVER (ORDER BY pct_checkup)    AS r_no_checkup
+    1 - PERCENT_RANK() OVER (ORDER BY pct_checkup)    AS r_no_checkup,
+    PERCENT_RANK() OVER (ORDER BY pct_age_65_plus)    AS r_seniors,
+    PERCENT_RANK() OVER (ORDER BY pct_mobility_difficulty) AS r_mobility,
+    PERCENT_RANK() OVER (ORDER BY pct_limited_english) AS r_limited_english
   FROM b
 )
 SELECT *,
   (@w_uninsured * r_uninsured + @w_distance * r_distance + @w_no_vehicle * r_no_vehicle
-   + @w_chronic * r_chronic + @w_no_checkup * r_no_checkup)
-  / (@w_uninsured + @w_distance + @w_no_vehicle + @w_chronic + @w_no_checkup) AS need_score
+   + @w_chronic * r_chronic + @w_no_checkup * r_no_checkup + @w_seniors * r_seniors
+   + @w_mobility * r_mobility + @w_limited_english * r_limited_english)
+  / NULLIF(@w_uninsured + @w_distance + @w_no_vehicle + @w_chronic + @w_no_checkup
+           + @w_seniors + @w_mobility + @w_limited_english, 0) AS need_score
 FROM r
 ORDER BY need_score DESC
 """
@@ -131,6 +144,9 @@ def tract_summary(r: dict) -> dict:
         "pct_checkup": {"value": _r(r["pct_checkup"], 1), "scale": SCALES["pct_checkup"]},
         "pct_limited_english": {
             "value": _r(r["pct_limited_english"], 1), "scale": SCALES["pct_limited_english"]},
+        "pct_age_65_plus": {"value": _r(r["pct_age_65_plus"], 1), "scale": SCALES["pct_age_65_plus"]},
+        "pct_mobility_difficulty": {
+            "value": _r(r["pct_mobility_difficulty"], 1), "scale": SCALES["pct_mobility_difficulty"]},
     }
 
 

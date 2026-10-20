@@ -16,13 +16,17 @@ def rank_tracts(
     w_no_vehicle: float = 0.20,
     w_chronic: float = 0.15,
     w_no_checkup: float = 0.10,
+    w_seniors: float = 0.0,
+    w_mobility: float = 0.0,
+    w_limited_english: float = 0.0,
 ) -> dict:
     """Ranks the county's census tracts by need for a mobile clinic.
 
     Each input is percent-ranked within the county and combined with the given weights:
     uninsured adults, straight-line km to a safety-net clinic, households with no
-    vehicle, diabetes plus high blood pressure, and adults without a routine checkup.
-    Air quality and respiratory trends are deliberately not inputs: they are not
+    vehicle, diabetes plus high blood pressure, and adults without a routine checkup;
+    optionally older adults, mobility difficulty and limited English. Race and ethnicity
+    are never inputs and there is no setting for them. Air quality and respiratory trends are deliberately not inputs: they are not
     measured at tract scale.
 
     Args:
@@ -32,34 +36,19 @@ def rank_tracts(
         w_no_vehicle: Weight on the share of households with no vehicle.
         w_chronic: Weight on diabetes and high blood pressure prevalence.
         w_no_checkup: Weight on adults who missed a routine checkup.
+        w_seniors: Weight on the share of residents aged 65 and over. Off by default.
+        w_mobility: Weight on adults with a mobility difficulty. Off by default.
+        w_limited_english: Weight on residents with limited English. Off by default.
 
     Returns:
         The weights used and the top tracts, each value labelled with its scale.
     """
     weights = dict(uninsured=w_uninsured, distance=w_distance, no_vehicle=w_no_vehicle,
-                   chronic=w_chronic, no_checkup=w_no_checkup)
+                   chronic=w_chronic, no_checkup=w_no_checkup, seniors=w_seniors,
+                   mobility=w_mobility, limited_english=w_limited_english)
     ranked = data.ranked_tracts(weights)
     return {"weights": weights, "tracts_ranked": len(ranked),
             "top": [data.tract_summary(r) for r in ranked[:top_n]]}
-
-
-def flag_request(tool_context: ToolContext, reason: str = "race_or_ethnicity") -> dict:
-    """Flags that the outreach lead's request asked for something this plan will not do.
-
-    Call it once, before planning, when the request asks to choose, favor or avoid places
-    by race, ethnicity, religion, national origin or who lives there. The interface shows
-    the outreach lead a warning as soon as it is called.
-
-    Args:
-        reason: "race_or_ethnicity" or "other_protected_group".
-
-    Returns:
-        Confirmation that the flag was recorded.
-    """
-    if reason not in ("race_or_ethnicity", "other_protected_group"):
-        reason = "other_protected_group"
-    tool_context.state["request_flag"] = {"reason": reason}
-    return {"flagged": reason, "next": "Plan on measured need and access only."}
 
 
 def plan_saturdays(
@@ -72,6 +61,9 @@ def plan_saturdays(
     w_no_vehicle: float = 0.20,
     w_chronic: float = 0.15,
     w_no_checkup: float = 0.10,
+    w_seniors: float = 0.0,
+    w_mobility: float = 0.0,
+    w_limited_english: float = 0.0,
     exclude_geo_ids: list[str] | None = None,
     include_geo_ids: list[str] | None = None,
 ) -> dict:
@@ -92,6 +84,9 @@ def plan_saturdays(
         w_no_vehicle: Weight on the share of households with no vehicle.
         w_chronic: Weight on diabetes and high blood pressure prevalence.
         w_no_checkup: Weight on adults who missed a routine checkup.
+        w_seniors: Weight on the share of residents aged 65 and over. Off by default.
+        w_mobility: Weight on adults with a mobility difficulty. Off by default.
+        w_limited_english: Weight on residents with limited English. Off by default.
         exclude_geo_ids: Tracts to leave out, e.g. after an audit objection.
         include_geo_ids: Tracts that must be included, e.g. a confirmed partner site.
 
@@ -100,7 +95,8 @@ def plan_saturdays(
         parameters used.
     """
     weights = dict(uninsured=w_uninsured, distance=w_distance, no_vehicle=w_no_vehicle,
-                   chronic=w_chronic, no_checkup=w_no_checkup)
+                   chronic=w_chronic, no_checkup=w_no_checkup, seniors=w_seniors,
+                   mobility=w_mobility, limited_english=w_limited_english)
     ranked = data.ranked_tracts(weights)
     dates = data.saturdays(month or None)
     chosen = data.select_stops(ranked, stops=len(dates), min_spacing_km=min_spacing_km,
@@ -139,9 +135,12 @@ def plan_saturdays(
                   min_km_to_safety_net=min_km_to_safety_net, weights=weights,
                   exclude_geo_ids=exclude_geo_ids or [], include_geo_ids=include_geo_ids or [])
 
-    # The comparison group for the equity audit: the top quarter of the county by need.
-    # Stored as tract IDs only, so the auditor can join demographics the planner never sees.
-    need_pool = [r["geo_id"] for r in ranked[: max(4, len(ranked) // 4)]]
+    # The comparison group for the equity audit: the top quarter of the county by the
+    # department's standard need score, whatever weights this plan used. A plan skewed by
+    # a request is then judged against real need, not against its own skew. Stored as
+    # tract IDs only, so the auditor can join demographics the planner never sees.
+    standard = data.ranked_tracts()
+    need_pool = [r["geo_id"] for r in standard[: max(4, len(standard) // 4)]]
 
     state = tool_context.state
     state["plan_stops"] = stops

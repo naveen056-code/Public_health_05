@@ -1,6 +1,7 @@
 """The Clinic Plan pipeline.
 
-    evidence (parallel)   need · context · capacity          -> evidence_* keys
+    evidence (parallel)   need · context · capacity lookups  -> evidence_* keys
+                          request reviewer: guidelines check -> request_review
     planner               ranks and picks four Saturdays     -> plan, plan_stops
     review loop (<=3)     auditor -> reviser if REVISE       -> audit_report, audit_table, plan
     outputs (parallel)    explainer: neighbors, EN + ES      -> outreach
@@ -21,7 +22,7 @@ Who can see what is the design:
 from google.adk.agents import LlmAgent, LoopAgent, ParallelAgent, SequentialAgent
 from google.genai import types
 
-from . import accountability, audit, config, data, prompts, tools
+from . import accountability, audit, config, data, prompts, review, tools
 from .outreach import Outreach
 from .workflow import ClinicPlanReport, EvidenceAgent, WhenAgent
 
@@ -36,20 +37,33 @@ def _planner(name: str, instruction: str, include_contents: str) -> LlmAgent:
         model=config.MODEL,
         description="Picks four Saturday stops for the mobile clinic from need and access data.",
         instruction=instruction,
-        tools=[tools.flag_request, tools.plan_saturdays, tools.rank_tracts],
+        tools=[tools.plan_saturdays, tools.rank_tracts],
         output_key="plan",
         include_contents=include_contents,
         generate_content_config=_precise,
     )
 
 
+# Judges the outreach lead's request against the guidelines. It needs none of the evidence,
+# so it runs alongside the lookups and costs no extra time.
+request_reviewer = LlmAgent(
+    name="request_reviewer",
+    model=config.MODEL,
+    description="Checks the outreach lead's request against the guidelines before planning.",
+    instruction=review.INSTRUCTION,
+    output_schema=review.RequestReview,
+    output_key="request_review",
+    generate_content_config=_precise,
+)
+
 evidence = ParallelAgent(
     name="gather_evidence",
-    description="Three independent lookups, run concurrently.",
+    description="Three independent lookups and the request review, run concurrently.",
     sub_agents=[
         EvidenceAgent(name="need_lookup", fetch=data.need_evidence, state_key="evidence_need"),
         EvidenceAgent(name="context_lookup", fetch=data.context_evidence, state_key="evidence_context"),
         EvidenceAgent(name="capacity_lookup", fetch=data.capacity_evidence, state_key="evidence_capacity"),
+        request_reviewer,
     ],
 )
 
