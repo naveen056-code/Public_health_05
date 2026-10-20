@@ -43,6 +43,25 @@ def rank_tracts(
             "top": [data.tract_summary(r) for r in ranked[:top_n]]}
 
 
+def flag_request(tool_context: ToolContext, reason: str = "race_or_ethnicity") -> dict:
+    """Flags that the outreach lead's request asked for something this plan will not do.
+
+    Call it once, before planning, when the request asks to choose, favor or avoid places
+    by race, ethnicity, religion, national origin or who lives there. The interface shows
+    the outreach lead a warning as soon as it is called.
+
+    Args:
+        reason: "race_or_ethnicity" or "other_protected_group".
+
+    Returns:
+        Confirmation that the flag was recorded.
+    """
+    if reason not in ("race_or_ethnicity", "other_protected_group"):
+        reason = "other_protected_group"
+    tool_context.state["request_flag"] = {"reason": reason}
+    return {"flagged": reason, "next": "Plan on measured need and access only."}
+
+
 def plan_saturdays(
     tool_context: ToolContext,
     month: str = "",

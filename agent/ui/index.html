@@ -45,6 +45,11 @@
     <p class="activity" id="activity"></p>
   </section>
 
+  <div class="notice flag" id="flag" role="alert" hidden>
+    <p class="notice-k">⚠ This request goes against the race guideline</p>
+    <p>The van is placed on need and access only. Race and ethnicity are used only to audit the plan afterwards.</p>
+  </div>
+
   <div class="notice" id="changed" hidden>
     <p class="notice-k">The auditor rejected the first plan</p>
     <p id="changed-text"></p>
@@ -69,7 +74,9 @@
       <div class="plan-head">
         <h2 id="plan-h">Four Saturdays</h2>
         <span class="verdict" id="verdict" hidden></span>
+        <button type="button" id="publish" class="primary publish" hidden>Publish to the community page</button>
       </div>
+      <p class="pub-status" id="pub-status" hidden></p>
       <div id="stops" class="stops">
         <div class="empty">
           <p><b>No plan yet.</b></p>
