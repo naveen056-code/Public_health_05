@@ -24,6 +24,7 @@ SCALES = {
     "pct_uninsured": "tract · modeled estimate (CDC PLACES, adults 18-64)",
     "pct_diabetes": "tract · modeled estimate (CDC PLACES)",
     "pct_high_bp": "tract · modeled estimate (CDC PLACES)",
+    "pct_asthma": "tract · modeled estimate (CDC PLACES)",
     "pct_checkup": "tract · modeled estimate (CDC PLACES); low is bad",
     "pct_no_vehicle": "tract · survey estimate (CDC SVI / ACS)",
     "pct_limited_english": "tract · survey estimate (CDC SVI / ACS)",
@@ -75,7 +76,7 @@ def _r(x, nd=2):
 _RANK_SQL = """
 WITH b AS (
   SELECT b.geo_id, b.total_pop, b.pct_uninsured, b.pct_no_vehicle, b.pct_checkup,
-         b.pct_diabetes, b.pct_high_bp, b.pct_limited_english, b.latitude, b.longitude,
+         b.pct_diabetes, b.pct_high_bp, b.pct_asthma, b.pct_limited_english, b.latitude, b.longitude,
          a.km_to_any_care, a.km_to_safety_net, a.extra_km_if_uninsured
   FROM {burden} b JOIN {access} a USING (geo_id)
   WHERE b.total_pop >= @min_population
@@ -125,8 +126,9 @@ def tract_summary(r: dict) -> dict:
         "pct_no_vehicle": {"value": _r(r["pct_no_vehicle"], 1), "scale": SCALES["pct_no_vehicle"]},
         "km_to_safety_net": {"value": _r(r["km_to_safety_net"]), "scale": SCALES["km_to_safety_net"]},
         "km_to_any_care": {"value": _r(r["km_to_any_care"]), "scale": SCALES["km_to_any_care"]},
-        "pct_diabetes": {"value": _r(r["pct_diabetes"], 1), "scale": SCALES["pct_diabetes"]},
-        "pct_high_bp": {"value": _r(r["pct_high_bp"], 1), "scale": SCALES["pct_high_bp"]},
+        "pct_diabetes": {"value": _r(r.get("pct_diabetes"), 1), "scale": SCALES["pct_diabetes"]},
+        "pct_high_bp": {"value": _r(r.get("pct_high_bp"), 1), "scale": SCALES["pct_high_bp"]},
+        "pct_asthma": {"value": _r(r.get("pct_asthma"), 1), "scale": SCALES["pct_asthma"]},
         "pct_checkup": {"value": _r(r["pct_checkup"], 1), "scale": SCALES["pct_checkup"]},
         "pct_limited_english": {
             "value": _r(r["pct_limited_english"], 1), "scale": SCALES["pct_limited_english"]},
@@ -228,6 +230,9 @@ def map_layers() -> dict:
         "geo_id": r["geo_id"], "need_rank": r["need_rank"], "need_score": _r(r["need_score"], 3),
         "population": int(r["total_pop"]), "pct_uninsured": _r(r["pct_uninsured"], 1),
         "pct_no_vehicle": _r(r["pct_no_vehicle"], 1), "km_to_safety_net": _r(r["km_to_safety_net"]),
+        "pct_diabetes": _r(r.get("pct_diabetes"), 1),
+        "pct_high_bp": _r(r.get("pct_high_bp"), 1),
+        "pct_asthma": _r(r.get("pct_asthma"), 1),
         "lat": r["latitude"], "lon": r["longitude"],
     } for r in ranked_tracts()]
     sites = _rows(f"""

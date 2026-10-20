@@ -55,10 +55,19 @@
     <figure class="mapcard">
       <div class="map-controls">
         <div class="metric-picker" id="metric-picker">
-          <button type="button" class="metric-btn active" data-metric="need_score">Need Score</button>
-          <button type="button" class="metric-btn" data-metric="pct_uninsured">Uninsured %</button>
-          <button type="button" class="metric-btn" data-metric="pct_no_vehicle">No Vehicle %</button>
-          <button type="button" class="metric-btn" data-metric="km_to_safety_net">Clinic Distance</button>
+          <div class="metric-group">
+            <span class="group-title">Access &amp; Need:</span>
+            <button type="button" class="metric-btn active" data-metric="need_score">Need Score</button>
+            <button type="button" class="metric-btn" data-metric="pct_uninsured">Uninsured %</button>
+            <button type="button" class="metric-btn" data-metric="pct_no_vehicle">No Vehicle %</button>
+            <button type="button" class="metric-btn" data-metric="km_to_safety_net">Clinic Distance</button>
+          </div>
+          <div class="metric-group health-group">
+            <span class="group-title health-title">Chronic Disease (CDC PLACES):</span>
+            <button type="button" class="metric-btn health-btn" data-metric="pct_diabetes">🩺 Diabetes %</button>
+            <button type="button" class="metric-btn health-btn" data-metric="pct_high_bp">❤️ High BP %</button>
+            <button type="button" class="metric-btn health-btn" data-metric="pct_asthma">🫁 Asthma %</button>
+          </div>
         </div>
         <div class="map-actions">
           <button type="button" class="anim-btn" id="anim-tour-btn" title="Animate route tour" hidden>🚐 Tour Route</button>

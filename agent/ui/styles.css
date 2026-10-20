@@ -105,13 +105,18 @@ main { display: flex; flex-direction: column; gap: 20px; max-width: 1400px; marg
 @media (max-width: 960px) { .workspace { grid-template-columns: 1fr; } }
 .mapcard { margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px;
   display: flex; flex-direction: column; gap: 10px; }
-.map-controls { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
-.metric-picker { display: flex; gap: 5px; flex-wrap: wrap; }
+.map-controls { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-wrap: wrap; }
+.metric-picker { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 280px; }
+.metric-group { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.group-title { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; margin-right: 2px; }
+.health-title { color: #38bdf8; }
 .metric-btn { font-size: 11px; padding: 4px 8px; border-radius: 6px; background: var(--bg); border: 1px solid var(--line);
-  color: var(--muted); cursor: pointer; transition: all .18s ease; }
+  color: var(--muted); cursor: pointer; transition: all .18s ease; display: inline-flex; align-items: center; gap: 3px; }
 .metric-btn:hover { color: var(--fg); border-color: var(--fg); }
 .metric-btn.active { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
-.map-actions { display: flex; gap: 6px; }
+.health-btn:hover { border-color: #38bdf8; color: #bae6fd; }
+.health-btn.active { background: #0284c7; color: #ffffff; border-color: #38bdf8; }
+.map-actions { display: flex; gap: 6px; align-self: flex-start; }
 .anim-btn { font-size: 11px; padding: 4px 9px; border-radius: 6px; background: #064e3b; border: 1px solid #10b981;
   color: #34d399; font-weight: 600; cursor: pointer; transition: all .18s ease; display: inline-flex; align-items: center; gap: 4px; }
 .anim-btn:hover { background: #047857; color: #fff; }

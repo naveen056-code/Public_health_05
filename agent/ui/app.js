@@ -70,6 +70,24 @@ const METRIC_CONFIG = {
     unit: " km",
     desc: "Straight-line distance (km) to the nearest sliding-scale safety-net health center (HRSA FQHC). Darker tracts are farther from care.",
   },
+  pct_diabetes: {
+    label: "Adult diabetes prevalence, low → high",
+    name: "Diabetes %",
+    unit: "%",
+    desc: "Modeled adult diabetes prevalence (CDC PLACES). Highlights census tracts where mobile glucometer testing and metabolic screening are urgently needed.",
+  },
+  pct_high_bp: {
+    label: "Adult high blood pressure prevalence, low → high",
+    name: "High Blood Pressure %",
+    unit: "%",
+    desc: "Modeled adult hypertension prevalence (CDC PLACES). Highlights areas with elevated cardiovascular risk for preventative blood pressure checks.",
+  },
+  pct_asthma: {
+    label: "Adult asthma prevalence, low → high",
+    name: "Asthma %",
+    unit: "%",
+    desc: "Modeled adult asthma prevalence (CDC PLACES). Identifies communities with respiratory burden for preventative education and bronchodilator triage.",
+  },
 };
 
 const COLOR_RAMP = ["#e6efec", "#bcd9d2", "#82bcb0", "#3f9586", "#0d6b61"];
@@ -112,6 +130,9 @@ function buildFallbackLayers(geo) {
       pct_uninsured: +(8 + (i * 3) % 28).toFixed(1),
       pct_no_vehicle: +(5 + (i * 2) % 35).toFixed(1),
       km_to_safety_net: +(1.2 + (i * 0.4) % 12).toFixed(1),
+      pct_diabetes: +(8.0 + (i * 1.3) % 13.5).toFixed(1),
+      pct_high_bp: +(24.0 + (i * 2.1) % 24.0).toFixed(1),
+      pct_asthma: +(8.5 + (i * 0.7) % 6.5).toFixed(1),
       lat: (minY + maxY) / 2,
       lon: (minX + maxX) / 2,
     });
@@ -283,6 +304,7 @@ function renderTractPolygons(geo, metricKey) {
              <div class="tt-row">${activeCfg.name}: <b style="color: #34d399;">${activeVal}</b></div>
              <div class="tt-row">Need rank: <b>#${t.need_rank}</b> of ${map.ranked} (${fmt(t.population)} people)</div>
              <div class="tt-row">${t.pct_uninsured}% uninsured · ${t.pct_no_vehicle}% no vehicle</div>
+             <div class="tt-row" style="color: #38bdf8;">🩺 ${t.pct_diabetes != null ? t.pct_diabetes + "%" : "N/A"} diabetes · ❤️ ${t.pct_high_bp != null ? t.pct_high_bp + "%" : "N/A"} BP · 🫁 ${t.pct_asthma != null ? t.pct_asthma + "%" : "N/A"} asthma</div>
              <div class="tt-row">${t.km_to_safety_net} km to clinic</div>
            </div>`
         : `<div class="leaflet-tooltip-dark"><b>Tract ${id}</b><div class="tt-sub">Under 500 people: not ranked</div></div>`;
@@ -290,7 +312,7 @@ function renderTractPolygons(geo, metricKey) {
       layer.bindTooltip(tooltipContent, { sticky: true, className: "leaflet-tooltip-pane" });
 
       const popupContent = t
-        ? `<div style="font-family: var(--body, sans-serif); font-size: 12px; color: #0f172a; line-height: 1.45; min-width: 220px; padding: 2px;">
+        ? `<div style="font-family: var(--body, sans-serif); font-size: 12px; color: #0f172a; line-height: 1.45; min-width: 235px; padding: 2px;">
              <div style="display: flex; justify-content: space-between; align-items: baseline;">
                <b style="font-size: 14px; color: #0284c7;">Tract ${id}</b>
                <span style="font-size: 11px; font-weight: 600; color: #475569;">Rank #${t.need_rank} of ${map.ranked}</span>
@@ -300,10 +322,17 @@ function renderTractPolygons(geo, metricKey) {
                <div style="font-size: 10px; font-weight: 700; color: #065f46; letter-spacing: .04em; text-transform: uppercase;">Selected Metric</div>
                <div style="font-size: 14px; font-weight: 700; color: #047857; margin-top: 2px;">${activeCfg.name}: ${activeVal}</div>
              </div>
-             <table style="width: 100%; font-size: 11.5px; border-collapse: collapse; margin-top: 4px;">
-               <tr style="border-bottom: 1px solid #e2e8f0;"><td style="padding: 3px 0; color: #64748b;">Uninsured (18-64):</td><td style="padding: 3px 0; text-align: right; font-weight: 600;">${t.pct_uninsured}%</td></tr>
-               <tr style="border-bottom: 1px solid #e2e8f0;"><td style="padding: 3px 0; color: #64748b;">Households w/o car:</td><td style="padding: 3px 0; text-align: right; font-weight: 600;">${t.pct_no_vehicle}%</td></tr>
-               <tr><td style="padding: 3px 0; color: #64748b;">Nearest Safety-Net:</td><td style="padding: 3px 0; text-align: right; font-weight: 600;">${t.km_to_safety_net} km</td></tr>
+             <div style="font-size: 10.5px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 3px;">Access &amp; Barriers</div>
+             <table style="width: 100%; font-size: 11.5px; border-collapse: collapse; margin-bottom: 6px;">
+               <tr style="border-bottom: 1px solid #e2e8f0;"><td style="padding: 2px 0; color: #64748b;">Uninsured (18-64):</td><td style="padding: 2px 0; text-align: right; font-weight: 600;">${t.pct_uninsured}%</td></tr>
+               <tr style="border-bottom: 1px solid #e2e8f0;"><td style="padding: 2px 0; color: #64748b;">Households w/o car:</td><td style="padding: 2px 0; text-align: right; font-weight: 600;">${t.pct_no_vehicle}%</td></tr>
+               <tr><td style="padding: 2px 0; color: #64748b;">Nearest Safety-Net:</td><td style="padding: 2px 0; text-align: right; font-weight: 600;">${t.km_to_safety_net} km</td></tr>
+             </table>
+             <div style="font-size: 10.5px; font-weight: 700; color: #0284c7; text-transform: uppercase; margin-bottom: 3px;">Chronic Disease (CDC PLACES)</div>
+             <table style="width: 100%; font-size: 11.5px; border-collapse: collapse;">
+               <tr style="border-bottom: 1px solid #e2e8f0;"><td style="padding: 2px 0; color: #64748b;">🩺 Diabetes:</td><td style="padding: 2px 0; text-align: right; font-weight: 600; color: #0369a1;">${t.pct_diabetes != null ? t.pct_diabetes + "%" : "N/A"}</td></tr>
+               <tr style="border-bottom: 1px solid #e2e8f0;"><td style="padding: 2px 0; color: #64748b;">❤️ High Blood Pressure:</td><td style="padding: 2px 0; text-align: right; font-weight: 600; color: #0369a1;">${t.pct_high_bp != null ? t.pct_high_bp + "%" : "N/A"}</td></tr>
+               <tr><td style="padding: 2px 0; color: #64748b;">🫁 Asthma:</td><td style="padding: 2px 0; text-align: right; font-weight: 600; color: #0369a1;">${t.pct_asthma != null ? t.pct_asthma + "%" : "N/A"}</td></tr>
              </table>
            </div>`
         : `<div style="font-size: 12px; color: #0f172a;"><b>Tract ${id}</b><br><span style="color: #64748b;">Under 500 residents: not ranked</span></div>`;
@@ -780,10 +809,13 @@ function renderCards(stops, runner) {
     c.append(meta);
     const facts = el("div", "facts");
     const fact = (v, unit, label) => { const f = el("span", "fact"); f.append(el("b", null, `${v}${unit}`), " ", label); facts.append(f); };
-    fact(s.pct_uninsured.value, "%", "uninsured adults 18-64");
-    fact(s.pct_no_vehicle.value, "%", "households without a car");
-    fact(s.km_to_safety_net.value, " km", "to a safety-net clinic");
-    fact(s.pct_high_bp.value, "%", "high blood pressure");
+    const getVal = (x) => (x && typeof x === "object" ? x.value : x);
+    if (getVal(s.pct_uninsured) != null) fact(getVal(s.pct_uninsured), "%", "uninsured adults 18-64");
+    if (getVal(s.pct_no_vehicle) != null) fact(getVal(s.pct_no_vehicle), "%", "households without a car");
+    if (getVal(s.km_to_safety_net) != null) fact(getVal(s.km_to_safety_net), " km", "to safety-net clinic");
+    if (getVal(s.pct_diabetes) != null) fact(getVal(s.pct_diabetes), "%", "diabetes");
+    if (getVal(s.pct_high_bp) != null) fact(getVal(s.pct_high_bp), "%", "high blood pressure");
+    if (getVal(s.pct_asthma) != null) fact(getVal(s.pct_asthma), "%", "asthma");
     const tags = el("span", "fact"); tags.append(el("small", null, "tract-level · PLACES modeled · distances straight-line")); facts.append(tags);
     c.append(facts);
     if (s.refer_to) {
