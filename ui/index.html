@@ -337,6 +337,15 @@
             <span>💬🎙️</span>
             <span>Chat &amp; Voice</span>
           </button>
+          <a
+            href="/community"
+            target="_blank"
+            title="Open Resident-Facing Community Schedule & Live Voice Helper"
+            class="px-3 py-2 rounded-lg bg-purple-500/20 hover:bg-purple-500/35 text-purple-300 border border-purple-500/40 font-semibold text-sm flex items-center gap-1.5 transition active:scale-95"
+          >
+            <span>🌐</span>
+            <span>Community Page ↗</span>
+          </a>
         </div>
       </form>
     </div>
@@ -392,6 +401,20 @@
         </li>
       </ol>
     </section>
+
+    <!-- Notice Banner when Request Violates Race Guideline (`flag_request`) -->
+    <div id="raceFlagBanner" role="alert" class="hidden bg-amber-950/60 border border-amber-500/60 rounded-xl px-4 py-3 flex flex-wrap items-center justify-between gap-3 animate-enter">
+      <div class="text-xs text-amber-100">
+        <span class="font-bold uppercase tracking-wider text-amber-300 mr-2">⚠ This request goes against the race guideline:</span>
+        <span>The van is placed on need and access only. Race and ethnicity are used only to audit the plan afterwards.</span>
+      </div>
+      <button
+        onclick="document.getElementById('raceFlagBanner').classList.add('hidden')"
+        class="text-xs px-2.5 py-1 rounded bg-slate-900/80 hover:bg-slate-800 text-amber-200 border border-amber-500/40"
+      >
+        Dismiss
+      </button>
+    </div>
 
     <!-- Notice Banner when Plan is Revised (`v1 -> v2`) -->
     <div id="revisionBanner" class="hidden bg-teal-950/40 border border-teal-500/50 rounded-xl px-4 py-3 flex flex-wrap items-center justify-between gap-3 animate-enter">
@@ -514,10 +537,21 @@
               v1 · ≥5km spacing
             </span>
           </div>
-          <span id="auditBadge" class="text-xs px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-semibold font-mono">
-            Audit: PASS
-          </span>
+          <div class="flex items-center gap-2">
+            <span id="auditBadge" class="text-xs px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-semibold font-mono">
+              Audit: PASS
+            </span>
+            <button
+              type="button"
+              id="publishBtn"
+              onclick="publishPlanToCommunity()"
+              class="text-xs px-3 py-1 rounded-lg bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-semibold shadow transition"
+            >
+              Publish to community page
+            </button>
+          </div>
         </div>
+        <p id="publishStatus" class="hidden text-xs text-purple-200 bg-purple-950/40 border border-purple-500/40 rounded-lg px-3 py-1.5"></p>
 
         <!-- 4 Saturday Stop Cards Stacked Cleanly -->
         <div id="saturdayCards" class="flex flex-col gap-2.5">
@@ -1572,10 +1606,47 @@
       renderFlyers(globalData.flyer);
     }
 
+    async function publishPlanToCommunity() {
+      const btn = document.getElementById("publishBtn");
+      const statusEl = document.getElementById("publishStatus");
+      const month = document.getElementById("monthInput")?.value || "2026-05";
+      if (!btn || !statusEl) return;
+
+      btn.disabled = true;
+      btn.textContent = "Publishing…";
+      try {
+        const res = await fetch("/api/publish", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sample: true, month }),
+        });
+        const body = await res.json();
+        if (!res.ok) throw new Error(body.detail || res.status);
+        btn.textContent = "Published ✓";
+        statusEl.classList.remove("hidden");
+        statusEl.innerHTML = `Residents now see the <strong>${escapeHtml(
+          body.month || month
+        )}</strong> schedule on <a href="/community" target="_blank" class="underline font-bold text-purple-300 hover:text-white">the community page ↗</a>.`;
+      } catch (err) {
+        btn.disabled = false;
+        btn.textContent = "Publish to community page";
+        statusEl.classList.remove("hidden");
+        statusEl.innerHTML = `<span class="text-rose-400">Could not publish: ${escapeHtml(err.message)}</span>`;
+      }
+    }
+
     async function handlePlanSubmit(e) {
       e.preventDefault();
       const month = document.getElementById("monthInput").value;
       const reqText = document.getElementById("requestInput").value.trim();
+
+      const flagBanner = document.getElementById("raceFlagBanner");
+      const isRaceTargeted =
+        /\b(only|prefer|favor|avoid|exclude|target|focus on|skip|prioritize|choose)\b/i.test(reqText) &&
+        /\b(black|white|hispanic|latino|asian|race|racial|ethnic|minority|african american)\b/i.test(reqText);
+      if (flagBanner) {
+        flagBanner.classList.toggle("hidden", !isRaceTargeted);
+      }
 
       // If user asks to exclude/leave out a tract in the prompt box, also apply instant visual revision
       const tractMatch = reqText.match(/\b(\d{11})\b/);
@@ -1621,6 +1692,9 @@
           body: JSON.stringify({ message: prompt, session_id: "web-ui-session" }),
         });
         const data = await res.json();
+        if (flagBanner && (data.request_flag || (data.state && data.state.request_flag))) {
+          flagBanner.classList.remove("hidden");
+        }
         document.getElementById("plannerNotesBox").innerHTML = formatMarkdown(data.reply);
         switchTab("notes");
         document.getElementById("agentStatusText").textContent =

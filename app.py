@@ -2,25 +2,48 @@
 
 from __future__ import annotations
 
+import json
 import os
 import re
+import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import FastAPI
+from dotenv import load_dotenv
+from fastapi import FastAPI, HTTPException
 from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+
+ROOT_DIR = Path(__file__).parent
+AGENT_DIR = ROOT_DIR / "agent"
+if str(AGENT_DIR) not in sys.path:
+    sys.path.insert(0, str(AGENT_DIR))
+
+load_dotenv(AGENT_DIR / "clinic_broker" / ".env", override=False)
 
 from agent.clinic_broker import audit as cb_audit
 from agent.clinic_broker import config as cb_config
 from agent.clinic_broker import data as cb_data
 
-app = FastAPI(
-    title="Public Health Equity & Preventative Mobile Care Broker",
-    description="Interactive Map, clinic_broker Multi-Agent Pipeline & Prompt UI",
-)
+try:
+    from google.adk.cli.fast_api import get_fast_api_app
+
+    app = get_fast_api_app(
+        agents_dir=str(AGENT_DIR),
+        session_service_uri="memory://",
+        artifact_service_uri="memory://",
+        use_local_storage=False,
+        web=True,
+    )
+    app.router.routes = [r for r in app.router.routes if getattr(r, "path", None) != "/"]
+except Exception:
+    app = FastAPI(
+        title="Public Health Equity & Preventative Mobile Care Broker",
+        description="Interactive Map, clinic_broker Multi-Agent Pipeline & Prompt UI",
+    )
 
 app.add_middleware(
     CORSMiddleware,
@@ -30,7 +53,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-UI_PATH = Path(__file__).parent / "ui" / "index.html"
+UI_PATH = ROOT_DIR / "ui" / "index.html"
+COMMUNITY_UI_PATH = AGENT_DIR / "ui" / "community.html"
 
 
 class ChatRequest(BaseModel):
@@ -922,15 +946,139 @@ def load_county_data() -> Dict[str, Any]:
     }
 
 
-@app.get("/")
+@app.get("/", include_in_schema=False)
 async def serve_ui():
     return FileResponse(UI_PATH)
 
 
-@app.get("/ui/fulton_tracts_2020.geojson")
-async def serve_tracts_geojson():
-    geojson_path = Path(__file__).parent / "agent" / "ui" / "fulton_tracts_2020.geojson"
-    return FileResponse(geojson_path, media_type="application/geo+json")
+@app.get("/community", include_in_schema=False)
+async def serve_community_ui():
+    return FileResponse(COMMUNITY_UI_PATH)
+
+
+@app.get("/api/map")
+async def get_rene_map_layers():
+    try:
+        return cb_data.map_layers()
+    except Exception:
+        d = load_county_data()
+        return {
+            "county": cb_config.COUNTY_NAME,
+            "county_fips": cb_config.COUNTY_FIPS,
+            "tracts": [
+                {
+                    "geo_id": t["geo_id"],
+                    "lat": t["latitude"],
+                    "lon": t["longitude"],
+                    "pop": t["total_pop"],
+                    "need_rank": t.get("need_rank", idx + 1),
+                    "need_score": t.get("need_score", 0.5),
+                    "pct_uninsured": t["pct_uninsured"],
+                    "pct_diabetes": t["pct_diabetes"],
+                    "pct_high_bp": t["pct_high_bp"],
+                    "pct_no_vehicle": t["pct_no_vehicle"],
+                    "km_to_safety_net": t["km_to_safety_net"],
+                }
+                for idx, t in enumerate(d["tracts"])
+            ],
+            "sites": [
+                {
+                    "name": s["name"],
+                    "kind": s["site_kind"],
+                    "safety_net": s["is_safety_net"],
+                    "address": s.get("address", ""),
+                    "city": s.get("city", "Atlanta"),
+                    "hours": s.get("hours_per_week", 40.0),
+                    "lat": s["latitude"],
+                    "lon": s["longitude"],
+                }
+                for s in d["sites"]
+            ],
+        }
+
+
+class PublishRequest(BaseModel):
+    user_id: str = ""
+    session_id: str = ""
+    sample: bool = False
+    month: Optional[str] = None
+
+
+_LATEST_PUBLISHED_CACHE: Optional[Dict[str, Any]] = None
+
+
+@app.post("/api/publish")
+async def publish_plan_endpoint(req: PublishRequest):
+    """Publishes the current 4-Saturday plan to BigQuery `published_plans` (and in-memory cache) for `/community`."""
+    global _LATEST_PUBLISHED_CACHE
+    sample_path = AGENT_DIR / "ui" / "sample_run.json"
+    state: Dict[str, Any] = {}
+    if sample_path.exists():
+        try:
+            state = dict(json.loads(sample_path.read_text(encoding="utf-8")).get("state") or {})
+        except Exception:
+            state = {}
+    if req.month:
+        state["plan_month"] = req.month
+
+    try:
+        pub_slice = cb_data.publishable(state)
+        if req.month:
+            pub_slice["month"] = req.month
+        _LATEST_PUBLISHED_CACHE = pub_slice
+        res = cb_data.publish_plan(pub_slice)
+        return res
+    except Exception:
+        d = load_county_data()
+        month_val = req.month or "2026-05"
+        fallback_pub = {
+            "month": month_val,
+            "county": cb_config.COUNTY_NAME,
+            "county_fips": cb_config.COUNTY_FIPS,
+            "audit_verdict": d["equity_audit"].get("verdict", "PASS"),
+            "stops": [
+                {
+                    "saturday": s.get("saturday", f"Saturday {i + 1}"),
+                    "geo_id": s["geo_id"],
+                    "lat": s["latitude"],
+                    "lon": s["longitude"],
+                    "refer_to": s.get("refer_to") or {},
+                }
+                for i, s in enumerate(d["recommended_stops"])
+            ],
+            "runner_up": d.get("runner_up") or {},
+            "messages": (d.get("flyer") or {}).get("stops") or [],
+            "runner_up_script": (d.get("flyer") or {}).get("runner_up_script") or "",
+        }
+        _LATEST_PUBLISHED_CACHE = fallback_pub
+        return {"published": True, "month": month_val, "stops": len(fallback_pub["stops"])}
+
+
+@app.get("/api/published")
+async def get_published_plan():
+    try:
+        plan = cb_data.latest_published()
+        if plan:
+            return plan
+    except Exception:
+        pass
+    if _LATEST_PUBLISHED_CACHE:
+        return _LATEST_PUBLISHED_CACHE
+    sample_path = AGENT_DIR / "ui" / "sample_run.json"
+    if sample_path.exists():
+        state = json.loads(sample_path.read_text(encoding="utf-8")).get("state") or {}
+        return cb_data.publishable(state)
+    raise HTTPException(status_code=404, detail="No plan has been published yet.")
+
+
+@app.get("/api/my-stop")
+async def get_my_stop(geo_id: str):
+    if not re.fullmatch(r"\d{11}", geo_id):
+        raise HTTPException(status_code=400, detail="geo_id must be an 11-digit tract code")
+    try:
+        return cb_data.stop_for_tract(geo_id)
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
 @app.get("/api/map-data")
@@ -1118,24 +1266,56 @@ async def run_adk_agent(
     return {"reply": "Ready to plan next month's mobile clinic Saturdays.", "state": {}}
 
 
+def _detect_race_flag(text: str) -> Optional[Dict[str, str]]:
+    """Checks whether a planning prompt attempts to target, favor, or avoid places by race/ethnicity."""
+    low = (text or "").lower()
+    if any(w in low for w in ["explain the racial", "equity audit", "how does the audit", "why is race"]):
+        return None
+    target_verbs = ["only", "prefer", "favor", "avoid", "exclude", "target", "focus on", "skip", "prioritize", "choose"]
+    protected_terms = [
+        "black",
+        "white",
+        "hispanic",
+        "latino",
+        "asian",
+        "race",
+        "racial",
+        "ethnic",
+        "minority",
+        "african american",
+    ]
+    if any(v in low for v in target_verbs) and any(p in low for p in protected_terms):
+        return {"reason": "race_or_ethnicity"}
+    return None
+
+
 @app.post("/api/chat")
 async def chat_endpoint(req: ChatRequest):
     county_data = load_county_data()
+    race_flag = _detect_race_flag(req.message)
     result = await run_adk_agent(req.message, req.session_id or "default-session", county_data)
     reply = result["reply"]
     state = result.get("state") or {}
+    req_flag = state.get("request_flag") or race_flag
+    if req_flag and "Request not followed:" not in reply:
+        reply = (
+            "> **Request not followed:** part of this request goes against the race and ethnicity "
+            "guideline, so the plan uses need and access only.\n\n" + reply
+        )
     mentioned_tracts = re.findall(r"\b\d{11}\b", reply)
     return JSONResponse(
         jsonable_encoder(
             {
                 "reply": reply,
                 "highlight_tracts": list(dict.fromkeys(mentioned_tracts)),
+                "request_flag": req_flag,
                 "state": {
                     "plan_stops": state.get("plan_stops"),
                     "plan_runner_up": state.get("plan_runner_up"),
                     "audit_verdict": state.get("audit_verdict"),
                     "audit_report": state.get("audit_report"),
                     "flyer": state.get("flyer"),
+                    "request_flag": req_flag,
                 },
             }
         )
@@ -1306,6 +1486,18 @@ async def voice_chat_endpoint(req: VoiceChatRequest):
             }
         )
     )
+
+
+@app.middleware("http")
+async def revalidate_pages(request, call_next):
+    response = await call_next(request)
+    if request.url.path in ("/", "/community") or request.url.path.startswith("/ui/"):
+        response.headers["Cache-Control"] = "no-cache"
+    return response
+
+
+if (AGENT_DIR / "ui").exists():
+    app.mount("/ui", StaticFiles(directory=str(AGENT_DIR / "ui")), name="ui")
 
 
 if __name__ == "__main__":
