@@ -1,6 +1,33 @@
 import os
+import subprocess
 from google.adk.agents import Agent
 from google.adk.tools import google_search
+
+
+def _ensure_vertex_ai_env() -> None:
+    """Auto-configure Vertex AI credentials in Cloud Shell so no API key is required."""
+    os.environ.setdefault("GOOGLE_GENAI_USE_VERTEXAI", "TRUE")
+    os.environ.setdefault("GOOGLE_CLOUD_LOCATION", "us-central1")
+    if not os.environ.get("GOOGLE_CLOUD_PROJECT"):
+        proj = (
+            os.environ.get("DEVSHELL_PROJECT_ID")
+            or os.environ.get("GCLOUD_PROJECT")
+            or os.environ.get("GCP_PROJECT")
+        )
+        if not proj:
+            try:
+                proj = subprocess.check_output(
+                    ["gcloud", "config", "get-value", "project"],
+                    text=True,
+                    stderr=subprocess.DEVNULL,
+                ).strip()
+            except Exception:
+                proj = None
+        if proj and proj != "(unset)":
+            os.environ["GOOGLE_CLOUD_PROJECT"] = proj
+
+
+_ensure_vertex_ai_env()
 
 # Root Agent for Challenge 5: Dynamic Public Health Equity & Preventative Mobile Care Broker
 # Parameters configuring this ADK Agent:
