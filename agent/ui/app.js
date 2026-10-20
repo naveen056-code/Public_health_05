@@ -402,7 +402,7 @@ function render(state, flyerHtml) {
   const firstRevise = audits.find((a) => a.verdict === "REVISE");
   $("changed").hidden = !firstRevise;
   if (firstRevise) {
-    // Prefer the auditor's plain finding ("Age 65+: 5.4% plan vs 12.7% need pool…") over its
+    // Prefer the auditor's plain finding ("Age 65+: 5.4% plan vs 13.4% need pool…") over its
     // instruction to the reviser, which is written in tool-parameter terms.
     const lines = firstRevise.report.split("\n").map((l) => l.replace(/^[-*\d.\s]+/, "").replace(/`/g, "").trim());
     const finding = lines.find((l) => /under-?reach|not explained|proxy/i.test(l))
