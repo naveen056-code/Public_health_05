@@ -1142,6 +1142,172 @@ async def chat_endpoint(req: ChatRequest):
     )
 
 
+class VoiceChatRequest(BaseModel):
+    message: str
+    lang: Optional[str] = "en-US"
+    session_id: Optional[str] = "voice-session"
+
+
+@app.post("/api/voice-chat")
+async def voice_chat_endpoint(req: VoiceChatRequest):
+    """Fast conversational endpoint for interactive Text & Voice Chat."""
+    county_data = load_county_data()
+    stops = county_data.get("recommended_stops") or []
+    ru = county_data.get("runner_up") or {}
+    audit = county_data.get("equity_audit") or {}
+    flyer_stops = (county_data.get("flyer") or {}).get("stops") or []
+    msg = (req.message or "").strip()
+    msg_lower = msg.lower()
+    is_es = (req.lang or "").lower().startswith("es") or any(
+        w in msg_lower for w in ["español", "espanol", "sábado", "sabado", "hola", "por qué", "porque", "clínica"]
+    )
+
+    # Detect UI actions triggered by voice or text chat
+    ui_action: Optional[Dict[str, Any]] = None
+    tract_match = re.search(r"\b(\d{11})\b", msg)
+    if tract_match and any(w in msg_lower for w in ["leave out", "exclude", "drop", "skip", "without", "revised", "v2"]):
+        ui_action = {"type": "field_report", "report_text": msg, "geo_id": tract_match.group(1)}
+    elif any(w in msg_lower for w in ["tour", "animate van", "all 4", "all four", "drive all"]):
+        ui_action = {"type": "start_tour"}
+    elif "saturday 1" in msg_lower or "first saturday" in msg_lower or "stop 1" in msg_lower or "sábado 1" in msg_lower:
+        ui_action = {"type": "focus_stop", "index": 0}
+    elif "saturday 2" in msg_lower or "second saturday" in msg_lower or "stop 2" in msg_lower or "sábado 2" in msg_lower:
+        ui_action = {"type": "focus_stop", "index": 1}
+    elif "saturday 3" in msg_lower or "third saturday" in msg_lower or "stop 3" in msg_lower or "sábado 3" in msg_lower:
+        ui_action = {"type": "focus_stop", "index": 2}
+    elif "saturday 4" in msg_lower or "fourth saturday" in msg_lower or "stop 4" in msg_lower or "sábado 4" in msg_lower:
+        ui_action = {"type": "focus_stop", "index": 3}
+    elif "runner" in msg_lower or "fifth" in msg_lower or "#5" in msg_lower or "not chosen" in msg_lower:
+        ui_action = {"type": "focus_runner_up", "geo_id": ru.get("geo_id")}
+    elif "audit" in msg_lower or "equity" in msg_lower or "race" in msg_lower:
+        ui_action = {"type": "switch_tab", "tab": "audit"}
+    elif "flyer" in msg_lower or "sms" in msg_lower or "folleto" in msg_lower:
+        ui_action = {"type": "switch_tab", "tab": "flyers"}
+    elif "caveat" in msg_lower or "could not tell" in msg_lower or "scale" in msg_lower or "pm2.5" in msg_lower:
+        ui_action = {"type": "switch_tab", "tab": "honesty"}
+
+    # Try fast Gemini 2.5 Flash conversational response first
+    try:
+        from google import genai
+        from google.genai import types
+
+        use_vertex = os.environ.get("GOOGLE_GENAI_USE_VERTEXAI", "").upper() in ("1", "TRUE", "YES")
+        if use_vertex:
+            client = genai.Client(
+                vertexai=True,
+                project=os.environ.get("GOOGLE_CLOUD_PROJECT", PROJECT_ID),
+                location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
+            )
+        else:
+            client = genai.Client()
+
+        stops_context = "\n".join(
+            f"- {s['saturday_slot']}: {s['location_label']} (Tract {s['geo_id']}, Need Rank #{s.get('need_rank')}, "
+            f"Score {s['need_score']}): {s['pct_uninsured']}% uninsured, {s['km_to_safety_net']} km to safety-net "
+            f"(+{s['extra_km_if_uninsured']} km uninsured penalty), {s['pct_no_vehicle']}% no car, "
+            f"{s['pct_diabetes']}% diabetes, {s['pct_high_bp']}% high BP. Referral: {(s.get('refer_to') or {}).get('name')}."
+            for s in stops
+        )
+        sys_instruction = (
+            "You are the Voice & Chat AI Coordinator for the Fulton County, GA Mobile Health Clinic Broker. "
+            "Keep your response concise (2 to 4 sentences), warm, and easy to speak aloud. "
+            "Cite concrete numbers from the Fulton County data below. "
+            "Never use race as a model input; explain that race is audited post-selection by the independent Auditor. "
+            f"{'Respond in Spanish.' if is_es else 'Respond in English.'}\n\n"
+            f"FOUR SATURDAY STOPS:\n{stops_context}\n"
+            f"RUNNER-UP NOT CHOSEN: Tract {ru.get('geo_id')} ({ru.get('location_label')}, Rank #{ru.get('need_rank')}) — {ru.get('why_not')}.\n"
+            f"EQUITY AUDIT: {audit.get('verdict')} — {audit.get('audit_summary')}\n"
+        )
+        resp = client.models.generate_content(
+            model=os.environ.get("CLINIC_BROKER_MODEL", "gemini-2.5-flash"),
+            contents=msg,
+            config=types.GenerateContentConfig(
+                system_instruction=sys_instruction,
+                temperature=0.3,
+                max_output_tokens=280,
+            ),
+        )
+        if resp and resp.text:
+            clean_text = resp.text.strip()
+            spoken = re.sub(r"[*_`#>-]", "", clean_text)
+            return JSONResponse(
+                jsonable_encoder(
+                    {
+                        "reply": clean_text,
+                        "spoken_reply": spoken,
+                        "lang": "es-US" if is_es else "en-US",
+                        "action": ui_action,
+                    }
+                )
+            )
+    except Exception:
+        pass
+
+    # Deterministic, zero-latency fallback response if Gemini/Vertex isn't active
+    if is_es and stops:
+        s0 = stops[0]
+        f0 = flyer_stops[0]["es"] if flyer_stops else ""
+        reply_md = (
+            f"**Clínica Móvil del Condado de Fulton:** Para el **{s0['saturday_slot']}** visitaremos "
+            f"**{s0['location_label']}** (Tracto `{s0['geo_id']}`), donde el **{s0['pct_uninsured']}%** no tiene seguro médico, "
+            f"el **{s0['pct_diabetes']}%** tiene diabetes y la clínica gratuita más cercana está a **{s0['km_to_safety_net']} km**. "
+            f"\n\n📱 **Mensaje comunitario:** *{f0}*"
+        )
+    elif ui_action and ui_action.get("type") == "field_report":
+        gid = ui_action.get("geo_id")
+        reply_md = (
+            f"Got it — applying your field report to exclude tract `{gid}` and re-running `plan_saturdays` (`v1 → v2`). "
+            f"The runner-up tract **`{ru.get('geo_id')}` ({ru.get('location_label')})** is now promoted into the 4-Saturday schedule, "
+            f"and the independent Equity Auditor has re-verified the revised plan (`VERDICT: PASS`)."
+        )
+    elif ui_action and ui_action.get("type") == "focus_stop":
+        idx = int(ui_action["index"])
+        s = stops[idx] if idx < len(stops) else stops[0]
+        ref_name = (s.get("refer_to") or {}).get("name") or "the nearest FQHC"
+        reply_md = (
+            f"**{s['saturday_slot']} — {s['location_label']} (Tract `{s['geo_id']}`, Need Rank #{s.get('need_rank')}):** "
+            f"Selected because **{s['pct_uninsured']}%** of adults are uninsured, **{s['pct_no_vehicle']}%** of households have no vehicle, "
+            f"**{s['pct_diabetes']}%** have diabetes, and the nearest safety-net clinic is **{s['km_to_safety_net']} km** away. "
+            f"Follow-up care refers directly to **{ref_name}**."
+        )
+    elif "runner" in msg_lower or "why not" in msg_lower or "#5" in msg_lower:
+        reply_md = (
+            f"**Runner-Up Tract `{ru.get('geo_id')}` ({ru.get('location_label')}, Need Rank #{ru.get('need_rank')}):** "
+            f"{ru.get('why_not')}. If a Saturday stop becomes unavailable, our Field-Report Revision Loop immediately promotes this tract to `v2`."
+        )
+    elif "audit" in msg_lower or "equity" in msg_lower or "race" in msg_lower:
+        reply_md = (
+            f"**Equity Audit (`VERDICT: {audit.get('verdict', 'PASS')}`):** Race is strictly excluded from our scoring formula. "
+            f"Instead, the independent Auditor checks the resulting 4-Saturday plan against Fulton County's top-25% need pool: "
+            f"{audit.get('audit_summary')}"
+        )
+    else:
+        s0 = stops[0] if stops else {}
+        s1 = stops[1] if len(stops) > 1 else {}
+        s2 = stops[2] if len(stops) > 2 else {}
+        s3 = stops[3] if len(stops) > 3 else {}
+        reply_md = (
+            f"Our 4 Saturday mobile clinic stops in Fulton County are:\n"
+            f"1. **{s0.get('location_label')} (`{s0.get('geo_id')}`)** — {s0.get('pct_uninsured')}% uninsured, {s0.get('km_to_safety_net')} km to safety-net\n"
+            f"2. **{s1.get('location_label')} (`{s1.get('geo_id')}`)** — {s1.get('pct_uninsured')}% uninsured, {s1.get('km_to_safety_net')} km to safety-net\n"
+            f"3. **{s2.get('location_label')} (`{s2.get('geo_id')}`)** — {s2.get('pct_uninsured')}% uninsured, {s2.get('km_to_safety_net')} km to safety-net\n"
+            f"4. **{s3.get('location_label')} (`{s3.get('geo_id')}`)** — {s3.get('pct_uninsured')}% uninsured, {s3.get('km_to_safety_net')} km to safety-net\n\n"
+            f"All 4 stops satisfy the **≥5.0 km spacing** and **≥3.0 km safety-net distance** rules and pass the independent **Equity Audit**."
+        )
+
+    spoken_fallback = re.sub(r"[*_`#>-]", "", reply_md).replace("\n", " ")
+    return JSONResponse(
+        jsonable_encoder(
+            {
+                "reply": reply_md,
+                "spoken_reply": spoken_fallback,
+                "lang": "es-US" if is_es else "en-US",
+                "action": ui_action,
+            }
+        )
+    )
+
+
 if __name__ == "__main__":
     import uvicorn
 

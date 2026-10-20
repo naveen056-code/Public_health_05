@@ -270,8 +270,8 @@
         </div>
       </div>
 
-      <!-- Single-Row Controls: Month + Optional Request + Plan / Tour Buttons -->
-      <form id="planForm" onsubmit="handlePlanSubmit(event)" class="flex-1 flex flex-wrap items-end gap-3 min-w-[300px] max-w-4xl">
+      <!-- Single-Row Controls: Month + Optional Request + Voice / Chat / Plan / Tour Buttons -->
+      <form id="planForm" onsubmit="handlePlanSubmit(event)" class="flex-1 flex flex-wrap items-end gap-2.5 min-w-[300px] max-w-5xl">
         <label class="flex flex-col gap-1 text-[11px] text-slate-400">
           <span>Month</span>
           <input
@@ -281,17 +281,28 @@
             class="bg-slate-950 border border-slate-700 focus:border-emerald-500 focus:outline-none rounded-lg px-3 py-1.5 text-sm text-white"
           />
         </label>
-        <label class="flex-1 flex flex-col gap-1 text-[11px] text-slate-400 min-w-[220px]">
-          <span>Anything the plan should take into account? <em class="text-slate-500 not-italic">(optional)</em></span>
-          <input
-            type="text"
-            id="requestInput"
-            placeholder="e.g. prioritize transit barriers, or leave out tract 13121007808"
-            autocomplete="off"
-            class="bg-slate-950 border border-slate-700 focus:border-orange-500 focus:outline-none rounded-lg px-3.5 py-1.5 text-sm text-white placeholder-slate-500"
-          />
+        <label class="flex-1 flex flex-col gap-1 text-[11px] text-slate-400 min-w-[230px]">
+          <span>Anything the plan should take into account? <em class="text-slate-500 not-italic">(type or 🎙️ speak)</em></span>
+          <div class="relative flex items-center">
+            <input
+              type="text"
+              id="requestInput"
+              placeholder="e.g. prioritize transit barriers, or leave out tract 13121007808"
+              autocomplete="off"
+              class="w-full bg-slate-950 border border-slate-700 focus:border-orange-500 focus:outline-none rounded-lg pl-3.5 pr-9 py-1.5 text-sm text-white placeholder-slate-500"
+            />
+            <button
+              type="button"
+              id="headerMicBtn"
+              onclick="startHeaderVoiceDictation()"
+              title="Speak into prompt (Voice Input)"
+              class="absolute right-1.5 px-1.5 py-0.5 rounded text-slate-300 hover:text-orange-400 hover:bg-slate-800 transition text-sm"
+            >
+              🎙️
+            </button>
+          </div>
         </label>
-        <div class="flex items-center gap-2">
+        <div class="flex flex-wrap items-center gap-2">
           <button
             type="submit"
             id="planBtn"
@@ -303,10 +314,28 @@
             type="button"
             id="tourBtn"
             onclick="toggleVanTour()"
-            class="px-3.5 py-2 rounded-lg bg-emerald-600/25 hover:bg-emerald-600/40 text-emerald-300 border border-emerald-500/40 font-semibold text-sm flex items-center gap-1.5 transition active:scale-95"
+            class="px-3 py-2 rounded-lg bg-emerald-600/25 hover:bg-emerald-600/40 text-emerald-300 border border-emerald-500/40 font-semibold text-sm flex items-center gap-1.5 transition active:scale-95"
           >
             <span id="tourBtnIcon">▶</span>
             <span id="tourBtnText">Animate Van Tour</span>
+          </button>
+          <button
+            type="button"
+            id="voiceNarratorBtn"
+            onclick="toggleVoiceNarrator()"
+            title="Toggle spoken narration when Doctor Van drives to a Saturday stop"
+            class="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold text-sm flex items-center gap-1.5 transition active:scale-95"
+          >
+            <span id="voiceNarratorIcon">🔊</span>
+            <span id="voiceNarratorLabel">Voice: ON</span>
+          </button>
+          <button
+            type="button"
+            onclick="toggleChatDrawer()"
+            class="px-3.5 py-2 rounded-lg bg-sky-500/20 hover:bg-sky-500/35 text-sky-300 border border-sky-500/40 font-semibold text-sm flex items-center gap-1.5 transition active:scale-95"
+          >
+            <span>💬🎙️</span>
+            <span>Chat &amp; Voice</span>
           </button>
         </div>
       </form>
@@ -1182,7 +1211,7 @@
         card.className = `ui-card cursor-pointer bg-slate-900/95 border border-slate-800 rounded-xl p-3.5 flex gap-3 items-start ${
           idx === activeStopIndex ? "active-stop" : ""
         }`;
-        card.onclick = () => focusSaturdayStop(idx);
+        card.onclick = () => focusSaturdayStop(idx, true);
         card.innerHTML = `
           <div class="w-8 h-8 rounded-full bg-gradient-to-br from-orange-500 to-rose-600 text-white font-bold text-sm flex items-center justify-center shrink-0 mt-0.5 shadow">
             ${idx + 1}
@@ -1192,9 +1221,19 @@
               <h3 class="text-sm font-bold text-white truncate">
                 ${escapeHtml(s.saturday || s.saturday_slot)} · ${escapeHtml(s.location_label || `Tract ${s.geo_id}`)}
               </h3>
-              <span class="text-[11px] font-mono text-orange-300">
-                Rank #${s.need_rank || idx + 1} of ${s.tracts_ranked || 325}
-              </span>
+              <div class="flex items-center gap-1.5">
+                <span class="text-[11px] font-mono text-orange-300">
+                  Rank #${s.need_rank || idx + 1} of ${s.tracts_ranked || 325}
+                </span>
+                <button
+                  type="button"
+                  onclick="event.stopPropagation(); speakSaturdayStop(${idx})"
+                  title="Hear Doctor Van explain Saturday ${idx + 1}"
+                  class="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-emerald-600/30 border border-slate-700 text-[11px] text-emerald-300 transition"
+                >
+                  🔊
+                </button>
+              </div>
             </div>
             <div class="text-xs text-slate-400 font-mono mb-2">
               Tract <strong class="text-slate-200">${s.geo_id}</strong> · ${(s.total_pop || s.population || 0).toLocaleString()} residents
@@ -1239,7 +1278,7 @@
       }
     }
 
-    function focusSaturdayStop(idx) {
+    function focusSaturdayStop(idx, allowNarration = false) {
       if (!globalData || !globalData.recommended_stops[idx]) return;
       activeStopIndex = idx;
       const stop = globalData.recommended_stops[idx];
@@ -1254,13 +1293,16 @@
         duration: 0.85,
       });
       animateDoctorVanTo(stop, stop.saturday_slot || `Saturday ${idx + 1}`, 900);
+      if (allowNarration && voiceNarratorEnabled) {
+        speakSaturdayStop(idx);
+      }
     }
 
     function driveVanToTract(geoId) {
       if (!globalData) return;
       const recIdx = globalData.recommended_stops.findIndex((s) => String(s.geo_id) === String(geoId));
       if (recIdx !== -1) {
-        focusSaturdayStop(recIdx);
+        focusSaturdayStop(recIdx, true);
         return;
       }
       const tract = globalData.tracts.find((t) => String(t.geo_id) === String(geoId));
@@ -1287,12 +1329,13 @@
       btnIcon.textContent = "⏹";
       btnText.textContent = "Stop Tour";
       let stepIdx = (activeStopIndex + 1) % 4;
-      focusSaturdayStop(stepIdx);
+      focusSaturdayStop(stepIdx, true);
 
+      const tourStepMs = voiceNarratorEnabled ? 6500 : 3000;
       vanTourInterval = setInterval(() => {
         stepIdx = (stepIdx + 1) % 4;
-        focusSaturdayStop(stepIdx);
-      }, 3000);
+        focusSaturdayStop(stepIdx, true);
+      }, tourStepMs);
     }
 
     function renderEquityAudit(audit) {
@@ -1380,11 +1423,29 @@
               <span class="text-[10px] font-mono text-slate-400">Tract ${m.geo_id}</span>
             </div>
             <div class="bg-slate-900/90 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200">
-              <span class="text-[10px] font-bold uppercase text-emerald-400 block mb-0.5">Text Message · English (${m.en.length} chars)</span>
+              <div class="flex items-center justify-between mb-0.5">
+                <span class="text-[10px] font-bold uppercase text-emerald-400">Text Message · English (${m.en.length} chars)</span>
+                <button
+                  type="button"
+                  onclick="speakText(globalData.flyer.stops[${idx}].en, 'en-US')"
+                  class="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 hover:bg-emerald-600/30 text-emerald-300 border border-slate-700"
+                >
+                  🔊 Read EN
+                </button>
+              </div>
               ${escapeHtml(m.en)}
             </div>
             <div class="bg-slate-900/90 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-200">
-              <span class="text-[10px] font-bold uppercase text-sky-400 block mb-0.5">Mensaje · Español (${m.es.length} chars)</span>
+              <div class="flex items-center justify-between mb-0.5">
+                <span class="text-[10px] font-bold uppercase text-sky-400">Mensaje · Español (${m.es.length} chars)</span>
+                <button
+                  type="button"
+                  onclick="speakText(globalData.flyer.stops[${idx}].es, 'es-US')"
+                  class="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 hover:bg-sky-600/30 text-sky-300 border border-slate-700"
+                >
+                  🔊 Leer ES
+                </button>
+              </div>
               ${escapeHtml(m.es)}
             </div>
           </div>
@@ -1585,6 +1646,484 @@
       initMap();
       loadDashboardData();
     });
+
+    // =========================================================================
+    // Voice & Text Chat Assistant (Speech-to-Text + Text-to-Speech + Live Chat)
+    // =========================================================================
+    let voiceNarratorEnabled = true;
+    let voiceLang = "en-US";
+    let isListening = false;
+    let activeRecognition = null;
+
+    function toggleVoiceNarrator() {
+      voiceNarratorEnabled = !voiceNarratorEnabled;
+      const icon = document.getElementById("voiceNarratorIcon");
+      const label = document.getElementById("voiceNarratorLabel");
+      const btn = document.getElementById("voiceNarratorBtn");
+      if (!voiceNarratorEnabled && window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+      if (icon) icon.textContent = voiceNarratorEnabled ? "🔊" : "🔇";
+      if (label) label.textContent = voiceNarratorEnabled ? "Voice: ON" : "Voice: OFF";
+      if (btn) {
+        btn.className = voiceNarratorEnabled
+          ? "px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold text-sm flex items-center gap-1.5 transition active:scale-95"
+          : "px-3 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-400 border border-slate-800 font-semibold text-sm flex items-center gap-1.5 transition active:scale-95";
+      }
+    }
+
+    function setVoiceLanguage(lang) {
+      voiceLang = lang;
+      const enBtn = document.getElementById("langBtnEn");
+      const esBtn = document.getElementById("langBtnEs");
+      if (enBtn && esBtn) {
+        enBtn.className =
+          lang === "en-US"
+            ? "px-2 py-0.5 rounded bg-sky-500/30 border border-sky-400 text-white text-[11px] font-bold"
+            : "px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-400 text-[11px]";
+        esBtn.className =
+          lang === "es-US"
+            ? "px-2 py-0.5 rounded bg-sky-500/30 border border-sky-400 text-white text-[11px] font-bold"
+            : "px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-400 text-[11px]";
+      }
+    }
+
+    function stopSpeaking() {
+      if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+      const wave = document.getElementById("voiceWaveform");
+      if (wave && !isListening) wave.classList.add("hidden");
+    }
+
+    function speakText(text, langOverride = null) {
+      if (!window.speechSynthesis || !text) return;
+      window.speechSynthesis.cancel();
+      const clean = String(text)
+        .replace(/[*_`#>-]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+      const utter = new SpeechSynthesisUtterance(clean);
+      const targetLang = langOverride || voiceLang || "en-US";
+      utter.lang = targetLang;
+      utter.rate = 1.03;
+
+      const voices = window.speechSynthesis.getVoices() || [];
+      const langPrefix = targetLang.slice(0, 2).toLowerCase();
+      const preferred =
+        voices.find((v) => v.lang.toLowerCase().startsWith(langPrefix) && /natural|google|samantha|aria|jenny|sabina|paulina/i.test(v.name)) ||
+        voices.find((v) => v.lang.toLowerCase().startsWith(langPrefix));
+      if (preferred) utter.voice = preferred;
+
+      const wave = document.getElementById("voiceWaveform");
+      const statusBadge = document.getElementById("voiceStateBadge");
+      utter.onstart = () => {
+        if (wave) wave.classList.remove("hidden");
+        if (statusBadge) statusBadge.textContent = "🔊 Speaking...";
+      };
+      utter.onend = () => {
+        if (wave && !isListening) wave.classList.add("hidden");
+        if (statusBadge && !isListening) statusBadge.textContent = "Ready · Text & Voice";
+      };
+      utter.onerror = () => {
+        if (wave && !isListening) wave.classList.add("hidden");
+        if (statusBadge && !isListening) statusBadge.textContent = "Ready · Text & Voice";
+      };
+      window.speechSynthesis.speak(utter);
+    }
+
+    function speakSaturdayStop(idx) {
+      if (!globalData || !globalData.recommended_stops || !globalData.recommended_stops[idx]) return;
+      const s = globalData.recommended_stops[idx];
+      const ref = (s.refer_to && s.refer_to.name) || "the nearest safety-net clinic";
+      if (voiceLang === "es-US") {
+        const esMsg =
+          globalData.flyer && globalData.flyer.stops && globalData.flyer.stops[idx]
+            ? globalData.flyer.stops[idx].es
+            : `Sábado ${idx + 1} en ${s.location_label}. ${s.pct_uninsured} por ciento sin seguro médico y ${s.pct_diabetes} por ciento con diabetes.`;
+        speakText(esMsg, "es-US");
+      } else {
+        const summary = `${s.saturday_slot || "Saturday " + (idx + 1)}, ${s.location_label}. Ranked number ${
+          s.need_rank || idx + 1
+        } in Fulton County. ${s.pct_uninsured}% of adults are uninsured, ${s.pct_no_vehicle}% have no vehicle, ${
+          s.pct_diabetes
+        }% have diabetes, and the nearest safety-net clinic is ${
+          s.km_to_safety_net
+        } kilometers away. Follow-up care refers to ${ref}.`;
+        speakText(summary, "en-US");
+      }
+    }
+
+    function toggleChatDrawer(forceOpen = null) {
+      const drawer = document.getElementById("voiceChatDrawer");
+      if (!drawer) return;
+      const isHidden = drawer.classList.contains("hidden");
+      const shouldOpen = forceOpen !== null ? forceOpen : isHidden;
+      drawer.classList.toggle("hidden", !shouldOpen);
+      if (shouldOpen) {
+        document.getElementById("drawerChatInput")?.focus();
+      }
+    }
+
+    function appendDrawerMessage(role, markdownHtml, spokenText = "", lang = "en-US") {
+      const box = document.getElementById("drawerChatMessages");
+      if (!box) return;
+      const wrap = document.createElement("div");
+      if (role === "user") {
+        wrap.className = "flex justify-end";
+        wrap.innerHTML = `
+          <div class="bg-gradient-to-r from-orange-500 to-rose-600 text-white rounded-2xl rounded-tr-sm px-3.5 py-2 text-xs max-w-[85%] shadow">
+            ${escapeHtml(markdownHtml)}
+          </div>
+        `;
+      } else {
+        const safeSpoken = String(spokenText || "")
+          .replace(/\\/g, "\\\\")
+          .replace(/'/g, "\\'")
+          .replace(/\n/g, " ");
+        wrap.className = "flex justify-start";
+        wrap.innerHTML = `
+          <div class="bg-slate-800/95 border border-slate-700/80 text-slate-100 rounded-2xl rounded-tl-sm px-3.5 py-2.5 text-xs max-w-[92%] shadow space-y-1.5">
+            <div class="flex items-center justify-between gap-2 border-b border-slate-700/70 pb-1">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-emerald-400">🚐 Clinic Broker Voice &amp; Chat</span>
+              ${
+                safeSpoken
+                  ? `<button type="button" onclick="speakText('${safeSpoken}', '${lang}')" class="text-[10px] px-1.5 py-0.5 rounded bg-slate-900 hover:bg-emerald-600/30 text-emerald-300 border border-slate-700">🔊 Replay</button>`
+                  : ""
+              }
+            </div>
+            <div class="leading-relaxed space-y-1">${markdownHtml}</div>
+          </div>
+        `;
+      }
+      box.appendChild(wrap);
+      box.scrollTop = box.scrollHeight;
+    }
+
+    async function sendDrawerChat(prefilledText = null, fromVoice = false) {
+      const inputEl = document.getElementById("drawerChatInput");
+      const text = (prefilledText !== null ? prefilledText : inputEl?.value || "").trim();
+      if (!text) return;
+      if (inputEl && prefilledText === null) inputEl.value = "";
+
+      toggleChatDrawer(true);
+      appendDrawerMessage("user", fromVoice ? `🎙️ "${text}"` : text);
+
+      const statusBadge = document.getElementById("voiceStateBadge");
+      if (statusBadge) statusBadge.textContent = "⏳ Thinking...";
+
+      try {
+        const res = await fetch("/api/voice-chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            message: text,
+            lang: voiceLang,
+            session_id: "voice-ui-session",
+          }),
+        });
+        const data = await res.json();
+        const replyMd = formatMarkdown(data.reply || "");
+        const spoken = data.spoken_reply || data.reply || "";
+        const replyLang = data.lang || voiceLang;
+
+        appendDrawerMessage("assistant", replyMd, spoken, replyLang);
+
+        // Execute synchronized map/UI actions when voice or chat mentions stops, tabs, or field reports
+        if (data.action) {
+          const act = data.action;
+          if (act.type === "focus_stop" && typeof act.index === "number") {
+            focusSaturdayStop(act.index, false);
+          } else if (act.type === "focus_runner_up" && act.geo_id) {
+            driveVanToTract(act.geo_id);
+          } else if (act.type === "start_tour") {
+            if (!vanTourInterval) toggleVanTour();
+          } else if (act.type === "switch_tab" && act.tab) {
+            switchTab(act.tab);
+          } else if (act.type === "field_report" && act.report_text) {
+            await submitFieldReport(act.report_text, 5.0);
+          }
+        }
+
+        if (voiceNarratorEnabled || fromVoice) {
+          speakText(spoken, replyLang);
+        } else if (statusBadge) {
+          statusBadge.textContent = "Ready · Text & Voice";
+        }
+      } catch (err) {
+        appendDrawerMessage("assistant", `<span class="text-rose-400">Error: ${escapeHtml(err.message)}</span>`);
+        if (statusBadge) statusBadge.textContent = "Ready · Text & Voice";
+      }
+    }
+
+    function toggleDrawerVoiceMic() {
+      const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRec) {
+        alert("Speech recognition is supported in Chrome and Edge. You can still type in chat and hear spoken responses!");
+        return;
+      }
+
+      if (isListening && activeRecognition) {
+        activeRecognition.stop();
+        return;
+      }
+
+      if (window.speechSynthesis) window.speechSynthesis.cancel();
+
+      const rec = new SpeechRec();
+      activeRecognition = rec;
+      rec.lang = voiceLang;
+      rec.interimResults = true;
+      rec.maxAlternatives = 1;
+
+      const micBtn = document.getElementById("drawerMicBtn");
+      const wave = document.getElementById("voiceWaveform");
+      const statusBadge = document.getElementById("voiceStateBadge");
+      const inputEl = document.getElementById("drawerChatInput");
+      let finalTranscript = "";
+
+      rec.onstart = () => {
+        isListening = true;
+        if (micBtn) {
+          micBtn.className =
+            "px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-rose-900/50 animate-pulse";
+          micBtn.innerHTML = "<span>⏹</span><span>Listening...</span>";
+        }
+        if (wave) wave.classList.remove("hidden");
+        if (statusBadge) statusBadge.textContent = `🎙️ Listening (${voiceLang === "es-US" ? "ES" : "EN"})...`;
+      };
+
+      rec.onresult = (event) => {
+        let interim = "";
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const t = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            finalTranscript += t;
+          } else {
+            interim += t;
+          }
+        }
+        if (inputEl) inputEl.value = (finalTranscript || interim).trim();
+      };
+
+      rec.onend = () => {
+        isListening = false;
+        activeRecognition = null;
+        if (micBtn) {
+          micBtn.className =
+            "px-3.5 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-md transition";
+          micBtn.innerHTML = "<span>🎙️</span><span>Speak</span>";
+        }
+        if (wave) wave.classList.add("hidden");
+        if (statusBadge) statusBadge.textContent = "Ready · Text & Voice";
+
+        const spokenQuery = (finalTranscript || inputEl?.value || "").trim();
+        if (spokenQuery) {
+          if (inputEl) inputEl.value = "";
+          sendDrawerChat(spokenQuery, true);
+        }
+      };
+
+      rec.onerror = () => {
+        isListening = false;
+        activeRecognition = null;
+        if (wave) wave.classList.add("hidden");
+        if (statusBadge) statusBadge.textContent = "Mic ready · Click Speak";
+      };
+
+      rec.start();
+    }
+
+    function startHeaderVoiceDictation() {
+      const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRec) {
+        toggleChatDrawer(true);
+        return;
+      }
+      const headerMic = document.getElementById("headerMicBtn");
+      const reqInput = document.getElementById("requestInput");
+      const rec = new SpeechRec();
+      rec.lang = voiceLang;
+      rec.interimResults = true;
+
+      if (headerMic) {
+        headerMic.textContent = "🔴";
+        headerMic.classList.add("animate-pulse");
+      }
+      rec.onresult = (e) => {
+        let txt = "";
+        for (let i = 0; i < e.results.length; i++) {
+          txt += e.results[i][0].transcript;
+        }
+        if (reqInput) reqInput.value = txt.trim();
+      };
+      rec.onend = () => {
+        if (headerMic) {
+          headerMic.textContent = "🎙️";
+          headerMic.classList.remove("animate-pulse");
+        }
+      };
+      rec.start();
+    }
   </script>
+
+  <!-- Floating Bottom-Right Chat & Voice Launcher Button -->
+  <button
+    type="button"
+    onclick="toggleChatDrawer()"
+    class="fixed bottom-5 right-5 z-40 px-4 py-3 rounded-full bg-gradient-to-r from-emerald-500 via-teal-500 to-sky-500 hover:from-emerald-600 hover:to-sky-600 text-white font-bold text-xs shadow-2xl shadow-emerald-950/70 border border-white/20 flex items-center gap-2 transition transform hover:scale-105 active:scale-95"
+  >
+    <span class="text-base">🎙️💬</span>
+    <span>Voice &amp; Text Chat</span>
+  </button>
+
+  <!-- Collapsible Voice & Text Chat Assistant Drawer -->
+  <aside
+    id="voiceChatDrawer"
+    class="hidden fixed bottom-20 right-5 z-50 w-[390px] max-w-[94vw] h-[520px] max-h-[80vh] bg-slate-900/95 backdrop-blur-xl border border-slate-700/90 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+  >
+    <!-- Drawer Header -->
+    <div class="px-4 py-3 bg-slate-950/90 border-b border-slate-800 flex items-center justify-between gap-2">
+      <div class="flex items-center gap-2">
+        <span class="w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-500 to-sky-500 flex items-center justify-center text-sm">🎙️</span>
+        <div>
+          <h3 class="text-xs font-bold text-white leading-tight">Clinic Broker Voice &amp; Chat</h3>
+          <p id="voiceStateBadge" class="text-[10px] text-emerald-400 font-mono">Ready · Text &amp; Voice</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-1.5">
+        <button
+          type="button"
+          id="langBtnEn"
+          onclick="setVoiceLanguage('en-US')"
+          class="px-2 py-0.5 rounded bg-sky-500/30 border border-sky-400 text-white text-[11px] font-bold"
+        >
+          🇺🇸 EN
+        </button>
+        <button
+          type="button"
+          id="langBtnEs"
+          onclick="setVoiceLanguage('es-US')"
+          class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-400 text-[11px]"
+        >
+          🇲🇽 ES
+        </button>
+        <button
+          type="button"
+          onclick="stopSpeaking()"
+          title="Stop speaking"
+          class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-[11px]"
+        >
+          🔇
+        </button>
+        <button
+          type="button"
+          onclick="toggleChatDrawer(false)"
+          class="px-2 py-0.5 rounded bg-slate-800 hover:bg-rose-600/40 text-slate-300 text-xs font-bold"
+        >
+          ✕
+        </button>
+      </div>
+    </div>
+
+    <!-- Animated Voice Waveform Indicator (visible while listening or speaking) -->
+    <div
+      id="voiceWaveform"
+      class="hidden bg-emerald-950/40 border-b border-emerald-500/30 px-4 py-2 flex items-center justify-between text-xs text-emerald-300"
+    >
+      <div class="flex items-center gap-2">
+        <span class="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+        <span class="text-[11px] font-medium">Voice Audio Active</span>
+      </div>
+      <div class="flex items-center gap-1 h-4">
+        <span class="w-1 bg-emerald-400 rounded-full animate-pulse h-2"></span>
+        <span class="w-1 bg-teal-300 rounded-full animate-pulse h-4"></span>
+        <span class="w-1 bg-sky-400 rounded-full animate-pulse h-3"></span>
+        <span class="w-1 bg-emerald-400 rounded-full animate-pulse h-4"></span>
+        <span class="w-1 bg-teal-300 rounded-full animate-pulse h-2"></span>
+      </div>
+    </div>
+
+    <!-- Quick Voice/Chat Chips -->
+    <div class="px-3 py-2 bg-slate-950/50 border-b border-slate-800/80 flex flex-wrap gap-1.5">
+      <button
+        type="button"
+        onclick="sendDrawerChat('Why did we pick Saturday 1?')"
+        class="text-[11px] px-2 py-1 rounded-lg bg-slate-800/90 hover:bg-slate-700 text-slate-200 border border-slate-700 transition"
+      >
+        🚐 Why Saturday 1?
+      </button>
+      <button
+        type="button"
+        onclick="sendDrawerChat('Why was the runner-up tract not chosen?')"
+        class="text-[11px] px-2 py-1 rounded-lg bg-slate-800/90 hover:bg-slate-700 text-slate-200 border border-slate-700 transition"
+      >
+        🤔 Why not runner-up?
+      </button>
+      <button
+        type="button"
+        onclick="sendDrawerChat('Explain the racial equity audit')"
+        class="text-[11px] px-2 py-1 rounded-lg bg-slate-800/90 hover:bg-slate-700 text-slate-200 border border-slate-700 transition"
+      >
+        ⚖️ Equity audit
+      </button>
+      <button
+        type="button"
+        onclick="sendDrawerChat('Leave out tract 13121007808 and revise the plan')"
+        class="text-[11px] px-2 py-1 rounded-lg bg-teal-950/70 hover:bg-teal-900/70 text-teal-200 border border-teal-700/50 transition"
+      >
+        ⚡ Revise v1→v2
+      </button>
+      <button
+        type="button"
+        onclick="setVoiceLanguage('es-US'); sendDrawerChat('Explícame en español adónde va la clínica móvil el Sábado 1')"
+        class="text-[11px] px-2 py-1 rounded-lg bg-sky-950/70 hover:bg-sky-900/70 text-sky-200 border border-sky-700/50 transition"
+      >
+        🇲🇽 Español
+      </button>
+    </div>
+
+    <!-- Messages Container -->
+    <div id="drawerChatMessages" class="flex-1 p-3.5 overflow-y-auto space-y-3">
+      <div class="flex justify-start">
+        <div class="bg-slate-800/95 border border-slate-700/80 text-slate-100 rounded-2xl rounded-tl-sm px-3.5 py-2.5 text-xs max-w-[92%] shadow space-y-1">
+          <div class="text-[10px] font-bold uppercase tracking-wider text-emerald-400">🚐 Clinic Broker Voice &amp; Chat</div>
+          <p class="leading-relaxed">
+            Hi! Tap <strong>🎙️ Speak</strong> to talk with your voice (in English or Spanish), or type a question below. I can also drive the Doctor Van on the map, explain any Saturday stop, or revise the schedule live!
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Input Bar (Mic Button + Text Input + Send Button) -->
+    <form
+      onsubmit="event.preventDefault(); sendDrawerChat();"
+      class="p-3 bg-slate-950/95 border-t border-slate-800 flex items-center gap-2"
+    >
+      <button
+        type="button"
+        id="drawerMicBtn"
+        onclick="toggleDrawerVoiceMic()"
+        title="Click and speak with your microphone"
+        class="px-3.5 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-md transition shrink-0"
+      >
+        <span>🎙️</span>
+        <span>Speak</span>
+      </button>
+      <input
+        type="text"
+        id="drawerChatInput"
+        placeholder="Ask or speak to Clinic Broker..."
+        autocomplete="off"
+        class="flex-1 bg-slate-900 border border-slate-700 focus:border-emerald-400 focus:outline-none rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500"
+      />
+      <button
+        type="submit"
+        class="px-3 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs transition shrink-0"
+      >
+        Send
+      </button>
+    </form>
+  </aside>
 </body>
 </html>
