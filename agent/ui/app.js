@@ -90,12 +90,30 @@ const METRIC_CONFIG = {
   },
 };
 
-const COLOR_RAMP = ["#e6efec", "#bcd9d2", "#82bcb0", "#3f9586", "#0d6b61"];
-const COLOR_RAMP_DARK = ["#1b2a27", "#1f4a42", "#2a6f63", "#3e9a8a", "#6fd3c2"];
+const METRIC_RAMPS = {
+  need_score: ["#1e293b", "#0f766e", "#0d9488", "#14b8a6", "#2dd4bf"],
+  pct_uninsured: ["#1e293b", "#92400e", "#b45309", "#d97706", "#f59e0b"],
+  pct_no_vehicle: ["#1e293b", "#9f1239", "#be123c", "#e11d48", "#f43f5e"],
+  km_to_safety_net: ["#1e293b", "#3730a3", "#4f46e5", "#6366f1", "#818cf8"],
+  pct_diabetes: ["#1e293b", "#065f46", "#059669", "#10b981", "#34d399"],
+  pct_high_bp: ["#1e293b", "#991b1b", "#dc2626", "#ef4444", "#f87171"],
+  pct_asthma: ["#1e293b", "#075985", "#0284c7", "#38bdf8", "#7dd3fc"],
+};
 
-function getColorForQuintile(q) {
-  const isDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
-  const ramp = isDark ? COLOR_RAMP_DARK : COLOR_RAMP;
+const METRIC_RAMPS_LIGHT = {
+  need_score: ["#ccfbf1", "#99f6e4", "#5eead4", "#14b8a6", "#0f766e"],
+  pct_uninsured: ["#fef3c7", "#fde68a", "#fcd34d", "#f59e0b", "#b45309"],
+  pct_no_vehicle: ["#ffe4e6", "#fecdd3", "#fda4af", "#f43f5e", "#be123c"],
+  km_to_safety_net: ["#e0e7ff", "#c7d2fe", "#a5b4fc", "#6366f1", "#4338ca"],
+  pct_diabetes: ["#d1fae5", "#a7f3d0", "#6ee7b7", "#10b981", "#047857"],
+  pct_high_bp: ["#fee2e2", "#fecaca", "#fca5a5", "#ef4444", "#b91c1c"],
+  pct_asthma: ["#e0f2fe", "#bae6fd", "#7dd3fc", "#38bdf8", "#0284c7"],
+};
+
+function getColorForQuintile(q, metricKey = "need_score") {
+  const isDark = !window.matchMedia || window.matchMedia("(prefers-color-scheme: dark)").matches || document.body.classList.contains("dark");
+  const ramps = isDark ? METRIC_RAMPS : METRIC_RAMPS_LIGHT;
+  const ramp = ramps[metricKey] || ramps.need_score;
   return ramp[q] || ramp[2];
 }
 
@@ -184,6 +202,7 @@ function initLeaflet(geo, layers) {
     zoomControl: true,
     scrollWheelZoom: true,
     doubleClickZoom: true,
+    attributionControl: false,
   }).setView([33.78, -84.42], 10);
 
   const esriDark = L.tileLayer(
@@ -237,6 +256,8 @@ function initLeaflet(geo, layers) {
       if (lastStopsData && lastStopsData.length) tourRoute(lastStopsData);
     });
   }
+
+  updateLegendLabel(currentMetric);
 }
 
 function updateLegendLabel(metricKey) {
@@ -245,6 +266,14 @@ function updateLegendLabel(metricKey) {
   if (lbl) lbl.textContent = cfg.label;
   const expl = $("metric-explainer");
   if (expl) expl.innerHTML = `<b>${cfg.name}:</b> ${cfg.desc}`;
+
+  const isDark = !window.matchMedia || window.matchMedia("(prefers-color-scheme: dark)").matches || document.body.classList.contains("dark");
+  const ramps = isDark ? METRIC_RAMPS : METRIC_RAMPS_LIGHT;
+  const ramp = ramps[metricKey] || ramps.need_score;
+  const rampBoxes = document.querySelectorAll(".ramp i");
+  rampBoxes.forEach((box, i) => {
+    if (ramp[i]) box.style.background = ramp[i];
+  });
 }
 
 function renderTractPolygons(geo, metricKey) {
@@ -271,7 +300,7 @@ function renderTractPolygons(geo, metricKey) {
         }
       }
       return {
-        fillColor: t ? getColorForQuintile(q) : "#19211f",
+        fillColor: t ? getColorForQuintile(q, metricKey) : "#19211f",
         weight: 0.8,
         opacity: 0.7,
         color: "#0f172a",
